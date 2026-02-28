@@ -1,0 +1,55 @@
+{
+  "name": "@finsys/borrower-client",
+  "version": "1.0.0",
+  "description": "Client library for the FinSys Borrower API — authentication, file uploads, and two-step loan application submission",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "finsys",
+    "borrower",
+    "loan-application",
+    "fintech",
+    "api-client"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ExtraGalaxies/finsys-borrower-client.git"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "axios": "^1.13.0",
+    "form-data": "^4.0.1"
+  },
+  "peerDependencies": {
+    "@finsys/core": "^1.0.0"
+  },
+  "devDependencies": {
+    "@finsys/core": "file:../finsys-core",
+    "@types/node": "^25.3.2",
+    "tsup": "^8.4.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  },
+  "license": "Apache-2.0"
+}
