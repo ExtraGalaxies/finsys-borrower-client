@@ -1,0 +1,24 @@
+name: Publish
+on:
+  release:
+    types: [published]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      # Replace file: dev dependency with npm version for CI
+      - run: npm pkg set "devDependencies.@finsys/core=^1.0.0"
+      - run: npm install
+      - run: npm test
+      - run: npm run build
+      - run: npm publish --provenance --access public

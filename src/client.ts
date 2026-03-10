@@ -7,6 +7,7 @@ import type {
   UploadResult,
   SubmissionResult,
   UpdateResult,
+  StatusResult,
   ConnectionTestResult,
 } from './types.js'
 import { BorrowerEndpoint } from './types.js'
@@ -241,6 +242,52 @@ export class BorrowerApiClient {
 
   /** Validate that an ID is safe for URL path construction. */
   private static readonly SAFE_ID_PATTERN = /^[\w-]+$/
+
+  /**
+   * Get the status of an application by IHS ID.
+   */
+  async getApplicationStatus(ihsId: string): Promise<StatusResult> {
+    if (!ihsId || !BorrowerApiClient.SAFE_ID_PATTERN.test(ihsId)) {
+      return { success: false, message: 'Invalid ihsId format' }
+    }
+
+    try {
+      return await this.withAuth(async (token) => {
+        const response = await axios.get(
+          this.resolveUrl(BorrowerEndpoint.STATUS, ihsId),
+          {
+            headers: this.authenticatedHeaders(token),
+            timeout: 15_000,
+          }
+        )
+
+        const status = response.data?.data?.status || response.data?.status
+        return {
+          success: true,
+          ihsId,
+          status,
+          message: response.data?.message || 'Status retrieved successfully',
+          data: response.data?.data,
+        }
+      })
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status
+        const respData = error.response?.data
+        const apiMessage = respData?.message || respData?.error || 'Unknown error'
+        return {
+          success: false,
+          ihsId,
+          message: `Status check failed (${status}): ${apiMessage}`,
+        }
+      }
+      return {
+        success: false,
+        ihsId,
+        message: 'An unexpected error occurred during status check',
+      }
+    }
+  }
 
   /**
    * Update an existing application.

@@ -235,6 +235,78 @@ describe('buildSubmissionPayloads', () => {
     ])
   })
 
+  it('maps supplementaryDoc_* fields to supplementaryDoc path_only array', () => {
+    const daasFields: Record<string, FieldData> = {
+      totalFinancing: { type: 'slider', category: 'financing' },
+      supplementaryDoc_companyprofile: { type: 'file', category: 'documents' },
+      supplementaryDoc_nric: { type: 'file', category: 'documents' },
+      supplementaryDoc_SKU: { type: 'file', category: 'documents' },
+    }
+
+    const formData: Record<string, unknown> = {
+      totalFinancing: 75000,
+      supplementaryDoc_companyprofile: [{ url: 'https://blob.example.com/company-profile.pdf', name: 'profile.pdf' }],
+      supplementaryDoc_nric: [{ url: 'https://blob.example.com/nric.pdf', name: 'nric.pdf' }],
+      supplementaryDoc_SKU: [{ url: 'https://blob.example.com/sku.json', name: 'Product_SKU.json' }],
+    }
+
+    const { createPayload, finalizePayload } = buildSubmissionPayloads(formData, daasFields)
+
+    // createPayload excludes file fields
+    expect(createPayload).toEqual({ totalFinancing: 75000 })
+
+    // supplementaryDoc is a flat array of { path } objects (no month/year)
+    expect(finalizePayload.supplementaryDoc).toEqual([
+      { path: 'https://blob.example.com/company-profile.pdf' },
+      { path: 'https://blob.example.com/nric.pdf' },
+      { path: 'https://blob.example.com/sku.json' },
+    ])
+  })
+
+  it('passes through unmapped file fields as plain URL strings', () => {
+    const fieldsWithCustomFile: Record<string, FieldData> = {
+      totalFinancing: { type: 'slider', category: 'financing' },
+      bank_statement_t1: { type: 'file', category: 'documents' },
+      custom_document: { type: 'file', category: 'documents' },
+    }
+
+    const formData: Record<string, unknown> = {
+      totalFinancing: 50000,
+      bank_statement_t1: [{ url: MOCK_URLS.bank_t1, name: 'bank.pdf' }],
+      custom_document: [{ url: 'https://blob.example.com/custom.pdf', name: 'custom.pdf' }],
+    }
+
+    const { finalizePayload } = buildSubmissionPayloads(
+      formData,
+      fieldsWithCustomFile,
+      new Date(2026, 0, 1)
+    )
+
+    // Mapped field works normally
+    expect(finalizePayload.bankStatements).toEqual([
+      { path: MOCK_URLS.bank_t1, month: 1, year: 2026 },
+    ])
+
+    // Unmapped file field passed through as plain URL
+    expect(finalizePayload.custom_document).toBe('https://blob.example.com/custom.pdf')
+  })
+
+  it('skips unmapped file fields with no uploaded value', () => {
+    const fieldsWithCustomFile: Record<string, FieldData> = {
+      totalFinancing: { type: 'slider', category: 'financing' },
+      custom_document: { type: 'file', category: 'documents' },
+    }
+
+    const formData: Record<string, unknown> = {
+      totalFinancing: 50000,
+      custom_document: [], // empty — no upload
+    }
+
+    const { finalizePayload } = buildSubmissionPayloads(formData, fieldsWithCustomFile)
+
+    expect(finalizePayload).not.toHaveProperty('custom_document')
+  })
+
   it('does not leak non-file fields into document groups', () => {
     const formData: Record<string, unknown> = {
       totalFinancing: 200000,

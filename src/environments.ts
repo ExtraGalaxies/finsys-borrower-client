@@ -10,4 +10,5 @@ export const ENDPOINT_PATHS: Record<BorrowerEndpoint, string> = {
   [BorrowerEndpoint.SUBMISSION]: '/ihs/submission',
   [BorrowerEndpoint.UPDATE]: '/update',
   [BorrowerEndpoint.UPLOAD_FILE]: '/uploadFile',
+  [BorrowerEndpoint.STATUS]: '/ihs/status',
 }

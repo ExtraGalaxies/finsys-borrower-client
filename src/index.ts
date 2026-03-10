@@ -9,6 +9,7 @@ export {
   type UploadedFileRef,
   type SubmissionResult,
   type UpdateResult,
+  type StatusResult,
   type ConnectionTestResult,
   type SubmissionPayloads,
 } from './types.js'

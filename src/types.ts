@@ -10,6 +10,7 @@ export enum BorrowerEndpoint {
   SUBMISSION = 'submission',
   UPDATE = 'update',
   UPLOAD_FILE = 'uploadFile',
+  STATUS = 'status',
 }
 
 export interface BorrowerClientConfig {
@@ -46,6 +47,14 @@ export interface SubmissionResult {
 
 export interface UpdateResult {
   success: boolean
+  message?: string
+  data?: unknown
+}
+
+export interface StatusResult {
+  success: boolean
+  ihsId?: string
+  status?: string
   message?: string
   data?: unknown
 }
@@ -108,20 +117,24 @@ const NON_UPDATABLE_CATEGORIES = new Set(['contact', 'consent'])
  * - `bank_statement_tN` → `bankStatements: [{ path, month: N, year: currentYear }]`
  * - `financials*`       → `financialStatements: [{ path, year: ordinalIndex }]`
  * - `ssm`               → `form9: "url"`
+ * - `supplementaryDoc_*` → `supplementaryDoc: [{ path }]`
  */
+type FileFieldFormat = 'path_array' | 'url_string' | 'path_only'
+
 const FILE_FIELD_RULES: {
   pattern: RegExp
   apiField: string
-  format: 'path_array' | 'url_string'
+  format: FileFieldFormat
 }[] = [
   { pattern: /^bank_statement_t(\d+)$/, apiField: 'bankStatements', format: 'path_array' },
   { pattern: /^financials/, apiField: 'financialStatements', format: 'path_array' },
   { pattern: /^ssm$/, apiField: 'form9', format: 'url_string' },
+  { pattern: /^supplementaryDoc_/, apiField: 'supplementaryDoc', format: 'path_only' },
 ]
 
 interface ResolvedMapping {
   apiField: string
-  format: 'path_array' | 'url_string'
+  format: FileFieldFormat
   /** For bank_statement_tN: the N offset. undefined for other fields. */
   tIndex?: number
 }
@@ -195,7 +208,7 @@ export function buildSubmissionPayloads(
     url: string
     mapping: ResolvedMapping
   }
-  const docGroups = new Map<string, { format: 'path_array' | 'url_string'; entries: DocEntry[] }>()
+  const docGroups = new Map<string, { format: FileFieldFormat; entries: DocEntry[] }>()
 
   for (const { name, mapping } of mappedFields) {
     const url = extractUrl(formData[name])
@@ -217,7 +230,11 @@ export function buildSubmissionPayloads(
   for (const [apiField, { format, entries }] of docGroups) {
     if (format === 'url_string') {
       documents[apiField] = entries[0].url
+    } else if (format === 'path_only') {
+      // supplementaryDoc etc: just { path } with no month/year metadata
+      documents[apiField] = entries.map((e) => ({ path: e.url }))
     } else {
+      // path_array: bank statements and financials
       documents[apiField] = entries.map((e, index) => {
         if (e.mapping.tIndex !== undefined) {
           // bank_statement_tN: month = N, year = current year
@@ -226,6 +243,16 @@ export function buildSubmissionPayloads(
         // financials etc: year = 1-based ordinal position
         return { path: e.url, year: index + 1 }
       })
+    }
+  }
+
+  // Pass through unmapped file fields as plain URL strings
+  for (const [name, def] of Object.entries(fields)) {
+    if (def.type !== 'file') continue
+    if (mappedFields.some((mf) => mf.name === name)) continue
+    const url = extractUrl(formData[name])
+    if (url) {
+      documents[name] = url
     }
   }
 
