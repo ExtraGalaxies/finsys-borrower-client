@@ -1,84 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import { buildSubmissionPayloads } from '../src/types.js'
-import type { FieldData } from '@finsys/core'
-
-// ─── Test form config (matches lead-gen-ui finhero-sme form-config.json) ─────
-
-const SME_FORM_FIELDS: Record<string, FieldData> = {
-  fullName: {
-    displayName: 'Full Name',
-    type: 'text',
-    category: 'contact',
-    required: true,
-  },
-  email: {
-    displayName: 'Email',
-    type: 'text',
-    category: 'contact',
-    required: true,
-    inputType: 'email',
-  },
-  totalFinancing: {
-    displayName: 'Financing Amount (RM)',
-    type: 'slider',
-    category: 'financing',
-    required: true,
-  },
-  formOfDisclosure: {
-    displayName: 'Consent',
-    type: 'checkbox',
-    category: 'consent',
-  },
-  bank_statement_t1: {
-    displayName: 'Bank Statement (Month T-1)',
-    type: 'file',
-    category: 'documents',
-    required: true,
-    ihs_column_names: ['bankBalanceT1'],
-  },
-  bank_statement_t2: {
-    displayName: 'Bank Statement (Month T-2)',
-    type: 'file',
-    category: 'documents',
-    required: true,
-    ihs_column_names: ['bankBalanceT2'],
-  },
-  bank_statement_t3: {
-    displayName: 'Bank Statement (Month T-3)',
-    type: 'file',
-    category: 'documents',
-    required: true,
-    ihs_column_names: ['bankBalanceT3'],
-  },
-  financials: {
-    displayName: 'Audited Financial Statement',
-    type: 'file',
-    category: 'documents',
-    required: true,
-    ihs_column_names: [
-      'shareCapital',
-      'totalEquityT1',
-      'totalEquityT2',
-      'totalCurrentLiabilities',
-      'shortTermLiabilities',
-      'totalAssets',
-      'totalCurrentAssets',
-      'tangibleAssets',
-      'netProfitT1',
-      'netProfitT2',
-      'endOfYearCash',
-      'netOperatingCashFlow',
-      'ebitda',
-    ],
-  },
-  ssm: {
-    displayName: 'Form 9 / Section 17 / Form D',
-    type: 'file',
-    category: 'documents',
-    required: true,
-    ihs_column_names: ['incorporatedDate'],
-  },
-}
 
 // Mock uploaded file URLs (as returned by FinSys uploadFile API)
 const MOCK_URLS = {
@@ -90,13 +11,15 @@ const MOCK_URLS = {
 }
 
 describe('buildSubmissionPayloads', () => {
-  it('produces a finalize payload matching the lead-gen-ui format', () => {
-    // Simulate form data after uploads (file fields stored as UploadedFileRef[])
+  it('produces correct create and finalize payloads with allowlist filtering', () => {
     const formData: Record<string, unknown> = {
       totalFinancing: 329000,
       fullName: 'John Doe',
       email: 'john@example.com',
-      formOfDisclosure: 'consented',
+      mobilePhoneNo: '0123456789',
+    }
+
+    const fileFields: Record<string, unknown> = {
       bank_statement_t1: [{ url: MOCK_URLS.bank_t1, name: 'bank-jan.pdf' }],
       bank_statement_t2: [{ url: MOCK_URLS.bank_t2, name: 'bank-feb.pdf' }],
       bank_statement_t3: [{ url: MOCK_URLS.bank_t3, name: 'bank-mar.pdf' }],
@@ -104,28 +27,26 @@ describe('buildSubmissionPayloads', () => {
       ssm: [{ url: MOCK_URLS.ssm, name: 'form9.pdf' }],
     }
 
-    // Pin date to 2026 so year is deterministic
     const now = new Date(2026, 1, 15) // Feb 15, 2026
 
     const { createPayload, finalizePayload } = buildSubmissionPayloads(
       formData,
-      SME_FORM_FIELDS,
+      fileFields,
       now
     )
 
-    // Step 1: createPayload should contain only metadata (no file references)
+    // createPayload: all base-spec metadata (no file fields)
     expect(createPayload).toEqual({
       totalFinancing: 329000,
       fullName: 'John Doe',
       email: 'john@example.com',
-      formOfDisclosure: 'consented',
+      mobilePhoneNo: '0123456789',
     })
 
-    // Step 2: finalizePayload should match the lead-gen-ui successful payload format
-    // Contact/consent fields (fullName, email, formOfDisclosure) are excluded —
-    // IHS API rejects these on update. Status is added by the service layer.
+    // finalizePayload: excludes non-updatable (fullName, email) but includes mobilePhoneNo
     expect(finalizePayload).toEqual({
       totalFinancing: 329000,
+      mobilePhoneNo: '0123456789',
       bankStatements: [
         { path: MOCK_URLS.bank_t1, month: 1, year: 2026 },
         { path: MOCK_URLS.bank_t2, month: 2, year: 2026 },
@@ -137,22 +58,48 @@ describe('buildSubmissionPayloads', () => {
       form9: MOCK_URLS.ssm,
     })
 
-    // Verify non-updatable fields are excluded from finalize
     expect(finalizePayload).not.toHaveProperty('fullName')
     expect(finalizePayload).not.toHaveProperty('email')
-    expect(finalizePayload).not.toHaveProperty('formOfDisclosure')
+  })
+
+  it('filters out custom/UI-only fields not in base specs', () => {
+    const formData: Record<string, unknown> = {
+      totalFinancing: 100000,
+      fullName: 'Jane Doe',
+      email: 'jane@test.com',
+      // These are NOT in base specs → should be filtered out
+      Policy: 'accepted',
+      PolicyCheckbox: true,
+      Consent: 'yes',
+      pdpaCheckbox: true,
+      formOfDisclosure: ['consented'],
+      customUiField: 'should-not-appear',
+    }
+
+    const { createPayload } = buildSubmissionPayloads(formData, {})
+
+    expect(createPayload.totalFinancing).toBe(100000)
+    expect(createPayload.fullName).toBe('Jane Doe')
+    expect(createPayload.email).toBe('jane@test.com')
+
+    // Custom/UI-only fields filtered by allowlist
+    expect(createPayload.Policy).toBeUndefined()
+    expect(createPayload.PolicyCheckbox).toBeUndefined()
+    expect(createPayload.Consent).toBeUndefined()
+    expect(createPayload.pdpaCheckbox).toBeUndefined()
+    expect(createPayload.formOfDisclosure).toBeUndefined()
+    expect(createPayload.customUiField).toBeUndefined()
   })
 
   it('handles plain URL strings as file values', () => {
-    const formData: Record<string, unknown> = {
-      totalFinancing: 50000,
+    const fileFields: Record<string, unknown> = {
       bank_statement_t1: MOCK_URLS.bank_t1,
       ssm: MOCK_URLS.ssm,
     }
 
     const { finalizePayload } = buildSubmissionPayloads(
-      formData,
-      SME_FORM_FIELDS,
+      { totalFinancing: 50000 },
+      fileFields,
       new Date(2026, 5, 1) // June 2026
     )
 
@@ -163,8 +110,7 @@ describe('buildSubmissionPayloads', () => {
   })
 
   it('skips file fields with no uploaded value', () => {
-    const formData: Record<string, unknown> = {
-      totalFinancing: 100000,
+    const fileFields: Record<string, unknown> = {
       bank_statement_t1: [{ url: MOCK_URLS.bank_t1, name: 'stmt.pdf' }],
       bank_statement_t2: [], // empty — no upload
       bank_statement_t3: undefined, // not provided
@@ -173,8 +119,8 @@ describe('buildSubmissionPayloads', () => {
     }
 
     const { createPayload, finalizePayload } = buildSubmissionPayloads(
-      formData,
-      SME_FORM_FIELDS,
+      { totalFinancing: 100000 },
+      fileFields,
       new Date(2026, 0, 10) // Jan 2026
     )
 
@@ -189,20 +135,15 @@ describe('buildSubmissionPayloads', () => {
     expect(finalizePayload).not.toHaveProperty('form9')
   })
 
-  it('handles 6 bank statements (fincap-sme config)', () => {
-    const fincapFields: Record<string, FieldData> = {}
+  it('handles 6 bank statements', () => {
+    const fileFields: Record<string, unknown> = {}
     for (let i = 1; i <= 6; i++) {
-      fincapFields[`bank_statement_t${i}`] = { type: 'file' }
-    }
-
-    const formData: Record<string, unknown> = {}
-    for (let i = 1; i <= 6; i++) {
-      formData[`bank_statement_t${i}`] = [{ url: `https://blob.example.com/bank-${i}`, name: `bank-${i}.pdf` }]
+      fileFields[`bank_statement_t${i}`] = [{ url: `https://blob.example.com/bank-${i}`, name: `bank-${i}.pdf` }]
     }
 
     const { finalizePayload } = buildSubmissionPayloads(
-      formData,
-      fincapFields,
+      {},
+      fileFields,
       new Date(2026, 3, 1) // April 2026
     )
 
@@ -217,17 +158,12 @@ describe('buildSubmissionPayloads', () => {
   })
 
   it('handles multiple financial statements (fincap with t1/t2)', () => {
-    const fincapFields: Record<string, FieldData> = {
-      financials_fincap_t1: { type: 'file' },
-      financials_fincap_t2: { type: 'file' },
-    }
-
-    const formData: Record<string, unknown> = {
+    const fileFields: Record<string, unknown> = {
       financials_fincap_t1: [{ url: 'https://blob.example.com/fin-t1', name: 'fin-t1.pdf' }],
       financials_fincap_t2: [{ url: 'https://blob.example.com/fin-t2', name: 'fin-t2.pdf' }],
     }
 
-    const { finalizePayload } = buildSubmissionPayloads(formData, fincapFields)
+    const { finalizePayload } = buildSubmissionPayloads({}, fileFields)
 
     expect(finalizePayload.financialStatements).toEqual([
       { path: 'https://blob.example.com/fin-t1', year: 1 },
@@ -236,26 +172,19 @@ describe('buildSubmissionPayloads', () => {
   })
 
   it('maps supplementaryDoc_* fields to supplementaryDoc path_only array', () => {
-    const daasFields: Record<string, FieldData> = {
-      totalFinancing: { type: 'slider', category: 'financing' },
-      supplementaryDoc_companyprofile: { type: 'file', category: 'documents' },
-      supplementaryDoc_nric: { type: 'file', category: 'documents' },
-      supplementaryDoc_SKU: { type: 'file', category: 'documents' },
-    }
-
-    const formData: Record<string, unknown> = {
-      totalFinancing: 75000,
+    const fileFields: Record<string, unknown> = {
       supplementaryDoc_companyprofile: [{ url: 'https://blob.example.com/company-profile.pdf', name: 'profile.pdf' }],
       supplementaryDoc_nric: [{ url: 'https://blob.example.com/nric.pdf', name: 'nric.pdf' }],
       supplementaryDoc_SKU: [{ url: 'https://blob.example.com/sku.json', name: 'Product_SKU.json' }],
     }
 
-    const { createPayload, finalizePayload } = buildSubmissionPayloads(formData, daasFields)
+    const { createPayload, finalizePayload } = buildSubmissionPayloads(
+      { totalFinancing: 75000 },
+      fileFields
+    )
 
-    // createPayload excludes file fields
     expect(createPayload).toEqual({ totalFinancing: 75000 })
 
-    // supplementaryDoc is a flat array of { path } objects (no month/year)
     expect(finalizePayload.supplementaryDoc).toEqual([
       { path: 'https://blob.example.com/company-profile.pdf' },
       { path: 'https://blob.example.com/nric.pdf' },
@@ -263,22 +192,15 @@ describe('buildSubmissionPayloads', () => {
     ])
   })
 
-  it('passes through unmapped file fields as plain URL strings', () => {
-    const fieldsWithCustomFile: Record<string, FieldData> = {
-      totalFinancing: { type: 'slider', category: 'financing' },
-      bank_statement_t1: { type: 'file', category: 'documents' },
-      custom_document: { type: 'file', category: 'documents' },
-    }
-
-    const formData: Record<string, unknown> = {
-      totalFinancing: 50000,
+  it('routes custom file fields (not matching any rule) to supplementaryDoc', () => {
+    const fileFields: Record<string, unknown> = {
       bank_statement_t1: [{ url: MOCK_URLS.bank_t1, name: 'bank.pdf' }],
       custom_document: [{ url: 'https://blob.example.com/custom.pdf', name: 'custom.pdf' }],
     }
 
     const { finalizePayload } = buildSubmissionPayloads(
-      formData,
-      fieldsWithCustomFile,
+      { totalFinancing: 50000 },
+      fileFields,
       new Date(2026, 0, 1)
     )
 
@@ -287,24 +209,23 @@ describe('buildSubmissionPayloads', () => {
       { path: MOCK_URLS.bank_t1, month: 1, year: 2026 },
     ])
 
-    // Unmapped file field passed through as plain URL
-    expect(finalizePayload.custom_document).toBe('https://blob.example.com/custom.pdf')
+    // Unmapped file field routed to supplementaryDoc
+    expect(finalizePayload.supplementaryDoc).toEqual([
+      { path: 'https://blob.example.com/custom.pdf' },
+    ])
   })
 
   it('skips unmapped file fields with no uploaded value', () => {
-    const fieldsWithCustomFile: Record<string, FieldData> = {
-      totalFinancing: { type: 'slider', category: 'financing' },
-      custom_document: { type: 'file', category: 'documents' },
-    }
-
-    const formData: Record<string, unknown> = {
-      totalFinancing: 50000,
+    const fileFields: Record<string, unknown> = {
       custom_document: [], // empty — no upload
     }
 
-    const { finalizePayload } = buildSubmissionPayloads(formData, fieldsWithCustomFile)
+    const { finalizePayload } = buildSubmissionPayloads(
+      { totalFinancing: 50000 },
+      fileFields
+    )
 
-    expect(finalizePayload).not.toHaveProperty('custom_document')
+    expect(finalizePayload).not.toHaveProperty('supplementaryDoc')
   })
 
   it('does not leak non-file fields into document groups', () => {
@@ -312,26 +233,71 @@ describe('buildSubmissionPayloads', () => {
       totalFinancing: 200000,
       fullName: 'Jane Doe',
       email: 'jane@test.com',
-      formOfDisclosure: 'consented',
     }
 
     const { createPayload, finalizePayload } = buildSubmissionPayloads(
       formData,
-      SME_FORM_FIELDS
+      {} // no file fields
     )
 
-    // createPayload has all metadata
     expect(createPayload).toEqual({
       totalFinancing: 200000,
       fullName: 'Jane Doe',
       email: 'jane@test.com',
-      formOfDisclosure: 'consented',
     })
 
-    // finalizePayload excludes non-updatable contact fields
+    // finalizePayload excludes only fullName/email
     expect(finalizePayload).toEqual({ totalFinancing: 200000 })
     expect(finalizePayload).not.toHaveProperty('fullName')
     expect(finalizePayload).not.toHaveProperty('email')
-    expect(finalizePayload).not.toHaveProperty('formOfDisclosure')
+  })
+
+  it('includes mobilePhoneNo in finalize payload (no longer non-updatable)', () => {
+    const formData: Record<string, unknown> = {
+      totalFinancing: 100000,
+      fullName: 'Test User',
+      email: 'test@test.com',
+      mobilePhoneNo: '0123456789',
+    }
+
+    const { finalizePayload } = buildSubmissionPayloads(formData, {})
+
+    expect(finalizePayload.mobilePhoneNo).toBe('0123456789')
+    expect(finalizePayload).not.toHaveProperty('fullName')
+    expect(finalizePayload).not.toHaveProperty('email')
+  })
+
+  it('excludes custom nonUpdatableFields from finalize payload', () => {
+    const formData: Record<string, unknown> = {
+      totalFinancing: 100000,
+      fullName: 'Test User',
+      email: 'test@test.com',
+      mobilePhoneNo: '0123456789',
+    }
+
+    const { finalizePayload } = buildSubmissionPayloads(formData, {}, undefined, {
+      nonUpdatableFields: ['mobilePhoneNo'],
+    })
+
+    expect(finalizePayload).not.toHaveProperty('mobilePhoneNo')
+    expect(finalizePayload.totalFinancing).toBe(100000)
+    // Default non-updatable fields still excluded
+    expect(finalizePayload).not.toHaveProperty('fullName')
+    expect(finalizePayload).not.toHaveProperty('email')
+  })
+
+  it('merges supplementaryDoc from rules and unmapped fields', () => {
+    const fileFields: Record<string, unknown> = {
+      supplementaryDoc_nric: [{ url: 'https://blob.example.com/nric.pdf', name: 'nric.pdf' }],
+      custom_extra_doc: [{ url: 'https://blob.example.com/extra.pdf', name: 'extra.pdf' }],
+    }
+
+    const { finalizePayload } = buildSubmissionPayloads({}, fileFields)
+
+    // Both rule-matched supplementaryDoc and unmapped files end up in supplementaryDoc
+    expect(finalizePayload.supplementaryDoc).toEqual([
+      { path: 'https://blob.example.com/nric.pdf' },
+      { path: 'https://blob.example.com/extra.pdf' },
+    ])
   })
 })

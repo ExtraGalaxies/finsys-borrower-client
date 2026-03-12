@@ -1,4 +1,4 @@
-import type { FieldData } from '@finsys/core'
+import { getBaseFieldSpecMap } from '@finsys/core'
 
 export enum BorrowerEnvironment {
   STAGING = 'staging',
@@ -88,7 +88,6 @@ export interface SubmissionPayloads {
 /**
  * Default fields that cannot be updated on an existing IHS entity.
  * These are excluded from the finalize (PATCH) payload.
- * Matches lead-gen-ui BFF cleanup: email, fullName, mobilePhoneNo, formOfDisclosure.
  *
  * Consumers can extend this set via the `options.nonUpdatableFields` parameter
  * of `buildSubmissionPayloads()`.
@@ -96,19 +95,7 @@ export interface SubmissionPayloads {
 const DEFAULT_NON_UPDATABLE_FIELDS = new Set([
   'email',
   'fullName',
-  'full_name',
-  'mobilePhoneNo',
-  'mobile_phone_no',
-  'phone',
-  'formOfDisclosure',
-  'form_of_disclosure',
 ])
-
-/**
- * Categories whose fields are excluded from the finalize (PATCH) payload.
- * These categories contain contact and consent fields that the IHS API rejects on update.
- */
-const NON_UPDATABLE_CATEGORIES = new Set(['contact', 'consent'])
 
 /**
  * Convention-based mapping rules for file fields → FinSys API document format.
@@ -161,45 +148,52 @@ function resolveFieldMapping(fieldName: string): ResolvedMapping | undefined {
  * 1. **Create** (POST): Submit metadata only → returns `ihsId`
  * 2. **Finalize** (PATCH): Send documents + metadata with `ihsId`
  *
- * File fields are identified from the form config `fields` object (entries with
- * `type: 'file'`) and mapped to the API format using field name conventions:
+ * Uses `@finsys/core`'s base field specs as an allowlist — only fields present
+ * in the base specs are included in payloads. File fields are provided separately
+ * and mapped to the API format using field name conventions:
  *
  * - `bank_statement_tN` → grouped into `bankStatements: [{ path, month: N, year }]`
  * - `financials*`       → grouped into `financialStatements: [{ path, year: ordinal }]`
  * - `ssm`               → mapped to `form9: "url"`
+ * - Unrecognized file fields → routed to `supplementaryDoc: [{ path }]`
  *
- * @param formData - The validated form data (file fields as UploadedFileRef[] or URL strings)
- * @param fields - The form config `fields` object (`Record<string, FieldData>` from `@finsys/core`)
+ * @param formData - The validated form data (metadata only, no file fields)
+ * @param fileFields - File field data, separated by the frontend
  * @param now - Optional date for bank statement year computation (defaults to current date)
  * @param options - Optional configuration
  * @param options.nonUpdatableFields - Additional field names to exclude from the finalize payload
  */
 export function buildSubmissionPayloads(
   formData: Record<string, unknown>,
-  fields: Record<string, FieldData>,
+  fileFields: Record<string, unknown>,
   now?: Date,
   options?: { nonUpdatableFields?: string[] }
 ): SubmissionPayloads {
   const currentYear = (now ?? new Date()).getFullYear()
+  const baseSpecs = getBaseFieldSpecMap()
 
-  // Identify file fields and their mappings
-  const fileFieldNames = new Set<string>()
-  const mappedFields: { name: string; mapping: ResolvedMapping }[] = []
-
-  for (const [name, def] of Object.entries(fields)) {
-    if (def.type !== 'file') continue
-    fileFieldNames.add(name)
-    const mapping = resolveFieldMapping(name)
-    if (mapping) {
-      mappedFields.push({ name, mapping })
+  // Filter formData through base specs allowlist
+  const createPayload: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(formData)) {
+    if (baseSpecs.has(key)) {
+      createPayload[key] = value
     }
   }
 
-  // Separate metadata from file fields
-  const createPayload: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(formData)) {
-    if (!fileFieldNames.has(key)) {
-      createPayload[key] = value
+  // Process file fields: map known patterns, route unknowns to supplementaryDoc
+  const mappedFields: { name: string; mapping: ResolvedMapping }[] = []
+  const unmappedFileFields: { name: string; url: string }[] = []
+
+  for (const name of Object.keys(fileFields)) {
+    const mapping = resolveFieldMapping(name)
+    if (mapping) {
+      mappedFields.push({ name, mapping })
+    } else {
+      // Not in FILE_FIELD_RULES — route to supplementaryDoc
+      const url = extractUrl(fileFields[name])
+      if (url) {
+        unmappedFileFields.push({ name, url })
+      }
     }
   }
 
@@ -211,7 +205,7 @@ export function buildSubmissionPayloads(
   const docGroups = new Map<string, { format: FileFieldFormat; entries: DocEntry[] }>()
 
   for (const { name, mapping } of mappedFields) {
-    const url = extractUrl(formData[name])
+    const url = extractUrl(fileFields[name])
     if (!url) continue
 
     const existing = docGroups.get(mapping.apiField)
@@ -231,35 +225,29 @@ export function buildSubmissionPayloads(
     if (format === 'url_string') {
       documents[apiField] = entries[0].url
     } else if (format === 'path_only') {
-      // supplementaryDoc etc: just { path } with no month/year metadata
       documents[apiField] = entries.map((e) => ({ path: e.url }))
     } else {
       // path_array: bank statements and financials
       documents[apiField] = entries.map((e, index) => {
         if (e.mapping.tIndex !== undefined) {
-          // bank_statement_tN: month = N, year = current year
           return { path: e.url, month: e.mapping.tIndex, year: currentYear }
         }
-        // financials etc: year = 1-based ordinal position
         return { path: e.url, year: index + 1 }
       })
     }
   }
 
-  // Pass through unmapped file fields as plain URL strings
-  for (const [name, def] of Object.entries(fields)) {
-    if (def.type !== 'file') continue
-    if (mappedFields.some((mf) => mf.name === name)) continue
-    const url = extractUrl(formData[name])
-    if (url) {
-      documents[name] = url
+  // Route unmapped file fields to supplementaryDoc
+  if (unmappedFileFields.length > 0) {
+    const existing = documents.supplementaryDoc as { path: string }[] | undefined
+    const suppDocs = existing ? [...existing] : []
+    for (const { url } of unmappedFileFields) {
+      suppDocs.push({ path: url })
     }
+    documents.supplementaryDoc = suppDocs
   }
 
   // Finalize payload = updatable metadata + transformed documents
-  // Excludes fields the IHS API rejects on update, using two layers:
-  // 1. Category-based: fields in 'contact' or 'consent' categories
-  // 2. Name-based: known non-updatable field names (+ consumer-provided extras)
   const nonUpdatable = new Set(DEFAULT_NON_UPDATABLE_FIELDS)
   if (options?.nonUpdatableFields) {
     for (const f of options.nonUpdatableFields) nonUpdatable.add(f)
@@ -267,10 +255,7 @@ export function buildSubmissionPayloads(
 
   const finalizePayload: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(createPayload)) {
-    const fieldDef = fields[key]
-    const category = fieldDef?.category
     if (nonUpdatable.has(key)) continue
-    if (category && NON_UPDATABLE_CATEGORIES.has(category)) continue
     finalizePayload[key] = value
   }
   Object.assign(finalizePayload, documents)
@@ -284,6 +269,10 @@ export function buildSubmissionPayloads(
  * Accepted shapes:
  * - Plain URL string: `"https://..."`
  * - `UploadedFileRef[]`: `[{ url: "https://...", name: "file.pdf" }]`
+ *
+ * Note: For arrays, only the first element's URL is used. Each file field name
+ * maps to one document entry — multiple files per field are not supported by
+ * the upstream FinSys API format.
  *
  * Consumers must store uploaded file references using the `UploadedFileRef` shape.
  */
