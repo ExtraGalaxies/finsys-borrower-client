@@ -231,6 +231,7 @@ export class BorrowerApiClient {
           success: false,
           message: `Submission failed (${status}): ${apiMessage}`,
           errors: respData?.errors,
+          data: respData,
         }
       }
       return {
@@ -325,6 +326,7 @@ export class BorrowerApiClient {
         return {
           success: false,
           message: `Update failed (${status}): ${apiMessage}`,
+          data: respData,
         }
       }
       return {
