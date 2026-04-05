@@ -11,5 +11,6 @@ export {
   type UpdateResult,
   type StatusResult,
   type ConnectionTestResult,
+  type ConsentEventResult,
   type SubmissionPayloads,
 } from './types.js'

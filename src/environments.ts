@@ -11,4 +11,5 @@ export const ENDPOINT_PATHS: Record<BorrowerEndpoint, string> = {
   [BorrowerEndpoint.UPDATE]: '/update',
   [BorrowerEndpoint.UPLOAD_FILE]: '/uploadFile',
   [BorrowerEndpoint.STATUS]: '/ihs/status',
+  [BorrowerEndpoint.CREATE_CONSENT]: '/ihs/createConsentEvent',
 }

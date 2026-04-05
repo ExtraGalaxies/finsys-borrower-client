@@ -286,6 +286,51 @@ describe('buildSubmissionPayloads', () => {
     expect(finalizePayload).not.toHaveProperty('email')
   })
 
+  it('maps ssm_business_information to ssm (url_string format)', () => {
+    const fileFields: Record<string, unknown> = {
+      ssm_business_information: [{ url: 'https://blob.example.com/ssm-biz.pdf', name: 'ssm-biz.pdf' }],
+    }
+
+    const { finalizePayload } = buildSubmissionPayloads(
+      { totalFinancing: 100000 },
+      fileFields
+    )
+
+    // ssm_business_information maps to apiField 'ssm' (not 'form9')
+    expect(finalizePayload.ssm).toBe('https://blob.example.com/ssm-biz.pdf')
+    expect(finalizePayload).not.toHaveProperty('form9')
+  })
+
+  it('maps ssm to form9 (url_string format)', () => {
+    const fileFields: Record<string, unknown> = {
+      ssm: [{ url: 'https://blob.example.com/form9.pdf', name: 'form9.pdf' }],
+    }
+
+    const { finalizePayload } = buildSubmissionPayloads(
+      { totalFinancing: 100000 },
+      fileFields
+    )
+
+    expect(finalizePayload.form9).toBe('https://blob.example.com/form9.pdf')
+    expect(finalizePayload).not.toHaveProperty('ssm')
+  })
+
+  it('handles both ssm_business_information and ssm in the same payload', () => {
+    const fileFields: Record<string, unknown> = {
+      ssm_business_information: [{ url: 'https://blob.example.com/ssm-biz.pdf', name: 'ssm-biz.pdf' }],
+      ssm: [{ url: 'https://blob.example.com/form9.pdf', name: 'form9.pdf' }],
+    }
+
+    const { finalizePayload } = buildSubmissionPayloads(
+      { totalFinancing: 100000 },
+      fileFields
+    )
+
+    // ssm_business_information maps to 'ssm', ssm maps to 'form9'
+    expect(finalizePayload.ssm).toBe('https://blob.example.com/ssm-biz.pdf')
+    expect(finalizePayload.form9).toBe('https://blob.example.com/form9.pdf')
+  })
+
   it('merges supplementaryDoc from rules and unmapped fields', () => {
     const fileFields: Record<string, unknown> = {
       supplementaryDoc_nric: [{ url: 'https://blob.example.com/nric.pdf', name: 'nric.pdf' }],

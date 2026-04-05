@@ -11,6 +11,20 @@ export enum BorrowerEndpoint {
   UPDATE = 'update',
   UPLOAD_FILE = 'uploadFile',
   STATUS = 'status',
+  CREATE_CONSENT = 'createConsent',
+}
+
+export interface ConsentEventResult {
+  success: boolean
+  data?: {
+    ihsId: number
+    id: number
+    consentDefinitionId: number
+    consentGiven: boolean
+    ipAddress?: string
+    createdAt?: string
+  }
+  message?: string
 }
 
 export interface BorrowerClientConfig {
@@ -115,6 +129,7 @@ const FILE_FIELD_RULES: {
 }[] = [
   { pattern: /^bank_statement_t(\d+)$/, apiField: 'bankStatements', format: 'path_array' },
   { pattern: /^financials/, apiField: 'financialStatements', format: 'path_array' },
+  { pattern: /^ssm_business_information$/, apiField: 'ssm', format: 'url_string' },
   { pattern: /^ssm$/, apiField: 'form9', format: 'url_string' },
   { pattern: /^supplementaryDoc_/, apiField: 'supplementaryDoc', format: 'path_only' },
 ]

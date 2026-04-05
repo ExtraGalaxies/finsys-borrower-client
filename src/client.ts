@@ -9,6 +9,7 @@ import type {
   UpdateResult,
   StatusResult,
   ConnectionTestResult,
+  ConsentEventResult,
 } from './types.js'
 import { BorrowerEndpoint } from './types.js'
 
@@ -332,6 +333,48 @@ export class BorrowerApiClient {
       return {
         success: false,
         message: 'An unexpected error occurred during application update',
+      }
+    }
+  }
+
+  /**
+   * Create a consent event for an IHS application.
+   */
+  async createConsentEvent(
+    ihsId: string,
+    payload: { consentDefinitionId: number; consentGiven: boolean; ipAddress?: string }
+  ): Promise<ConsentEventResult> {
+    if (!ihsId || !BorrowerApiClient.SAFE_ID_PATTERN.test(ihsId)) {
+      return { success: false, message: 'Invalid ihsId format' }
+    }
+
+    try {
+      return await this.withAuth(async (token) => {
+        const response = await axios.post(
+          this.resolveUrl(BorrowerEndpoint.CREATE_CONSENT, ihsId),
+          payload,
+          {
+            headers: this.authenticatedHeaders(token),
+            timeout: 15_000,
+          }
+        )
+
+        return {
+          success: true,
+          data: response.data?.data,
+          message: 'Consent event created',
+        }
+      })
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        return {
+          success: false,
+          message: `Consent creation failed (${error.response?.status}): ${error.response?.data?.message || 'Unknown error'}`,
+        }
+      }
+      return {
+        success: false,
+        message: 'An unexpected error occurred during consent creation',
       }
     }
   }
