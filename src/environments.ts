@@ -1,15 +1,15 @@
 import { BorrowerEnvironment, BorrowerEndpoint } from './types.js'
 
 export const BASE_URLS: Record<BorrowerEnvironment, string> = {
-  [BorrowerEnvironment.STAGING]: 'https://api.finhero.asia/stage/buyerfuel/v1',
-  [BorrowerEnvironment.PRODUCTION]: 'https://api.finhero.asia/buyerfuel/v1',
+  [BorrowerEnvironment.STAGING]: 'https://finsys-api-stage.finhero.asia',
+  [BorrowerEnvironment.PRODUCTION]: 'https://finsys-api.finhero.asia',
 }
 
 export const ENDPOINT_PATHS: Record<BorrowerEndpoint, string> = {
-  [BorrowerEndpoint.LOGIN]: '/login',
-  [BorrowerEndpoint.SUBMISSION]: '/ihs/submission',
-  [BorrowerEndpoint.UPDATE]: '/update',
-  [BorrowerEndpoint.UPLOAD_FILE]: '/uploadFile',
-  [BorrowerEndpoint.STATUS]: '/ihs/status',
-  [BorrowerEndpoint.CREATE_CONSENT]: '/ihs/createConsentEvent',
+  [BorrowerEndpoint.LOGIN]: '/auth/client/login',
+  [BorrowerEndpoint.SUBMISSION]: '/client/ihs/client/submission',
+  [BorrowerEndpoint.UPDATE]: '/client/ihs/update',
+  [BorrowerEndpoint.UPLOAD_FILE]: '/file/upload/file/temp',
+  [BorrowerEndpoint.STATUS]: '/client/ihs/check/status',
+  [BorrowerEndpoint.CREATE_CONSENT]: '/client/ihs/createConsentEvent',
 }
