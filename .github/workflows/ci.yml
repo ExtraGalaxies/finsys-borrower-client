@@ -17,7 +17,7 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
       # Replace file: dev dependency with npm version for CI
-      - run: npm pkg set "devDependencies.@finsys/core=^1.0.0"
+      - run: npm pkg set "devDependencies.@finsys/core=^2.0.0"
       - run: rm package-lock.json
       - run: npm install
       - run: npm run build
