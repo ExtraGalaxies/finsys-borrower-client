@@ -7,7 +7,7 @@ const MOCK_URLS = {
   bank_t2: 'https://finherodms.blob.core.windows.net/dms-general-storage/a23a5c72d806311126bec18c611b4f354cd4795c82281d60a55315520531b101',
   bank_t3: 'https://finherodms.blob.core.windows.net/dms-general-storage/c6b8f6225b6d00ec248ca7940e396b5f1e5bbd2e247285e4977899c2f9a8b96e',
   financials: 'https://finherodms.blob.core.windows.net/dms-general-storage/2b7d13cb6f9bb64d8bd0b65c361458a9b9237cc0ae85763a4b7b748a5f871472',
-  ssm: 'https://finherodms.blob.core.windows.net/dms-general-storage/73b371998e4e50244bb1db08dbd3b4aa3e68e378b63e76aacc46a7a9182d3979',
+  form9: 'https://finherodms.blob.core.windows.net/dms-general-storage/73b371998e4e50244bb1db08dbd3b4aa3e68e378b63e76aacc46a7a9182d3979',
 }
 
 describe('buildSubmissionPayloads', () => {
@@ -24,7 +24,7 @@ describe('buildSubmissionPayloads', () => {
       bank_statement_t2: [{ url: MOCK_URLS.bank_t2, name: 'bank-feb.pdf' }],
       bank_statement_t3: [{ url: MOCK_URLS.bank_t3, name: 'bank-mar.pdf' }],
       financials: [{ url: MOCK_URLS.financials, name: 'financials-2025.pdf' }],
-      ssm: [{ url: MOCK_URLS.ssm, name: 'form9.pdf' }],
+      form9: [{ url: MOCK_URLS.form9, name: 'form9.pdf' }],
     }
 
     const now = new Date(2026, 1, 15) // Feb 15, 2026
@@ -55,7 +55,7 @@ describe('buildSubmissionPayloads', () => {
       financialStatements: [
         { path: MOCK_URLS.financials, year: 1 },
       ],
-      form9: MOCK_URLS.ssm,
+      form9: MOCK_URLS.form9,
     })
 
     expect(finalizePayload).not.toHaveProperty('fullName')
@@ -94,7 +94,7 @@ describe('buildSubmissionPayloads', () => {
   it('handles plain URL strings as file values', () => {
     const fileFields: Record<string, unknown> = {
       bank_statement_t1: MOCK_URLS.bank_t1,
-      ssm: MOCK_URLS.ssm,
+      form9: MOCK_URLS.form9,
     }
 
     const { finalizePayload } = buildSubmissionPayloads(
@@ -106,7 +106,7 @@ describe('buildSubmissionPayloads', () => {
     expect(finalizePayload.bankStatements).toEqual([
       { path: MOCK_URLS.bank_t1, month: 1, year: 2026 },
     ])
-    expect(finalizePayload.form9).toBe(MOCK_URLS.ssm)
+    expect(finalizePayload.form9).toBe(MOCK_URLS.form9)
   })
 
   it('skips file fields with no uploaded value', () => {
@@ -286,49 +286,38 @@ describe('buildSubmissionPayloads', () => {
     expect(finalizePayload).not.toHaveProperty('email')
   })
 
-  it('maps ssm_business_information to ssm (url_string format)', () => {
+  it('maps ssm to ssm (url_string format)', () => {
     const fileFields: Record<string, unknown> = {
-      ssm_business_information: [{ url: 'https://blob.example.com/ssm-biz.pdf', name: 'ssm-biz.pdf' }],
+      ssm: [{ url: 'https://blob.example.com/ssm-biz.pdf', name: 'ssm-biz.pdf' }],
     }
-
-    const { finalizePayload } = buildSubmissionPayloads(
-      { totalFinancing: 100000 },
-      fileFields
-    )
-
-    // ssm_business_information maps to apiField 'ssm' (not 'form9')
+    const { finalizePayload } = buildSubmissionPayloads({ totalFinancing: 100000 }, fileFields)
     expect(finalizePayload.ssm).toBe('https://blob.example.com/ssm-biz.pdf')
-    expect(finalizePayload).not.toHaveProperty('form9')
   })
 
-  it('maps ssm to form9 (url_string format)', () => {
+  it('maps form9 to form9 (url_string format)', () => {
     const fileFields: Record<string, unknown> = {
-      ssm: [{ url: 'https://blob.example.com/form9.pdf', name: 'form9.pdf' }],
+      form9: [{ url: 'https://blob.example.com/form9.pdf', name: 'form9.pdf' }],
     }
-
-    const { finalizePayload } = buildSubmissionPayloads(
-      { totalFinancing: 100000 },
-      fileFields
-    )
-
+    const { finalizePayload } = buildSubmissionPayloads({ totalFinancing: 100000 }, fileFields)
     expect(finalizePayload.form9).toBe('https://blob.example.com/form9.pdf')
-    expect(finalizePayload).not.toHaveProperty('ssm')
   })
 
-  it('handles both ssm_business_information and ssm in the same payload', () => {
+  it('handles both ssm and form9 in the same payload', () => {
     const fileFields: Record<string, unknown> = {
-      ssm_business_information: [{ url: 'https://blob.example.com/ssm-biz.pdf', name: 'ssm-biz.pdf' }],
-      ssm: [{ url: 'https://blob.example.com/form9.pdf', name: 'form9.pdf' }],
+      ssm: [{ url: 'https://blob.example.com/ssm-biz.pdf', name: 'ssm-biz.pdf' }],
+      form9: [{ url: 'https://blob.example.com/form9.pdf', name: 'form9.pdf' }],
     }
-
-    const { finalizePayload } = buildSubmissionPayloads(
-      { totalFinancing: 100000 },
-      fileFields
-    )
-
-    // ssm_business_information maps to 'ssm', ssm maps to 'form9'
+    const { finalizePayload } = buildSubmissionPayloads({ totalFinancing: 100000 }, fileFields)
     expect(finalizePayload.ssm).toBe('https://blob.example.com/ssm-biz.pdf')
     expect(finalizePayload.form9).toBe('https://blob.example.com/form9.pdf')
+  })
+
+  it('maps ic to ic (url_string format)', () => {
+    const fileFields: Record<string, unknown> = {
+      ic: [{ url: 'https://blob.example.com/ic-front.pdf', name: 'ic-front.pdf' }],
+    }
+    const { finalizePayload } = buildSubmissionPayloads({ totalFinancing: 100000 }, fileFields)
+    expect(finalizePayload.ic).toBe('https://blob.example.com/ic-front.pdf')
   })
 
   it('merges supplementaryDoc from rules and unmapped fields', () => {
