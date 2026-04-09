@@ -320,6 +320,18 @@ describe('buildSubmissionPayloads', () => {
     expect(finalizePayload.ic).toBe('https://blob.example.com/ic-front.pdf')
   })
 
+  it('maps epf_statement_tN to epfStatements with month/year', () => {
+    const fileFields: Record<string, unknown> = {
+      epf_statement_t1: [{ url: 'https://blob.example.com/epf-1.pdf', name: 'epf-1.pdf' }],
+      epf_statement_t2: [{ url: 'https://blob.example.com/epf-2.pdf', name: 'epf-2.pdf' }],
+    }
+    const { finalizePayload } = buildSubmissionPayloads({}, fileFields, new Date(2026, 0, 1))
+    expect(finalizePayload.epfStatements).toEqual([
+      { path: 'https://blob.example.com/epf-1.pdf', month: 1, year: 2026 },
+      { path: 'https://blob.example.com/epf-2.pdf', month: 2, year: 2026 },
+    ])
+  })
+
   it('merges supplementaryDoc from rules and unmapped fields', () => {
     const fileFields: Record<string, unknown> = {
       supplementaryDoc_nric: [{ url: 'https://blob.example.com/nric.pdf', name: 'nric.pdf' }],

@@ -175,9 +175,13 @@ function resolveFieldMapping(fieldName: string): ResolvedMapping | undefined {
  * in the base specs are included in payloads. File fields are provided separately
  * and mapped to the API format using field name conventions:
  *
- * - `bank_statement_tN` → grouped into `bankStatements: [{ path, month: N, year }]`
- * - `financials*`       → grouped into `financialStatements: [{ path, year: ordinal }]`
- * - `ssm`               → mapped to `form9: "url"`
+ * - `bank_statement_tN`    → `bankStatements: [{ path, month: N, year }]`
+ * - `financials*`          → `financialStatements: [{ path, year: ordinal }]`
+ * - `epf_statement_tN`     → `epfStatements: [{ path, month: N, year }]`
+ * - `payslip_statement_tN` → `payslips: [{ path, month: N, year }]`
+ * - `form9`                → `form9: "url"`
+ * - `ssm`                  → `ssm: "url"`
+ * - `ic`                   → `ic: "url"`
  * - Unrecognized file fields → routed to `supplementaryDoc: [{ path }]`
  *
  * @param formData - The validated form data (metadata only, no file fields)

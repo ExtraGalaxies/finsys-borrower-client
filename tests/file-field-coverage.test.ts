@@ -16,7 +16,8 @@ describe('file field coverage guard', () => {
     const unmapped: string[] = []
 
     for (const field of fileFields) {
-      const name = field.name!
+      const name = field.name
+      if (!name) throw new Error(`Base spec file field at index ${fileFields.indexOf(field)} has no name`)
       const fakeFileFields: Record<string, unknown> = {
         [name]: [{ url: `https://test.example.com/${name}.pdf`, name: `${name}.pdf` }],
       }
