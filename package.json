@@ -45,7 +45,7 @@
     "@finsys/core": "^2.0.0"
   },
   "devDependencies": {
-    "@finsys/core": "file:../finsys-core",
+    "@finsys/core": "^2.0.0",
     "@types/node": "^25.3.2",
     "tsup": "^8.4.0",
     "typescript": "^5.9.3",
