@@ -114,11 +114,16 @@ const DEFAULT_NON_UPDATABLE_FIELDS = new Set([
 /**
  * Convention-based mapping rules for file fields → FinSys API document format.
  *
- * These are derived from the FinSys Borrower API's expected payload structure:
- * - `bank_statement_tN` → `bankStatements: [{ path, month: N, year: currentYear }]`
- * - `financials*`       → `financialStatements: [{ path, year: ordinalIndex }]`
- * - `ssm`               → `form9: "url"`
- * - `supplementaryDoc_*` → `supplementaryDoc: [{ path }]`
+ * Field names in @finsys/core base specs match API field names directly.
+ * These rules define the serialization format for each file field pattern:
+ * - `bank_statement_tN`    → `bankStatements: [{ path, month: N, year }]`
+ * - `financials*`          → `financialStatements: [{ path, year: ordinal }]`
+ * - `epf_statement_tN`     → `epfStatements: [{ path, month: N, year }]`
+ * - `payslip_statement_tN` → `payslips: [{ path, month: N, year }]`
+ * - `form9`                → `form9: "url"`
+ * - `ssm`                  → `ssm: "url"`
+ * - `ic`                   → `ic: "url"`
+ * - `supplementaryDoc_*`   → `supplementaryDoc: [{ path }]`
  */
 type FileFieldFormat = 'path_array' | 'url_string' | 'path_only'
 
@@ -129,8 +134,11 @@ const FILE_FIELD_RULES: {
 }[] = [
   { pattern: /^bank_statement_t(\d+)$/, apiField: 'bankStatements', format: 'path_array' },
   { pattern: /^financials/, apiField: 'financialStatements', format: 'path_array' },
-  { pattern: /^ssm_business_information$/, apiField: 'ssm', format: 'url_string' },
-  { pattern: /^ssm$/, apiField: 'form9', format: 'url_string' },
+  { pattern: /^epf_statement_t(\d+)$/, apiField: 'epfStatements', format: 'path_array' },
+  { pattern: /^payslip_statement_t(\d+)$/, apiField: 'payslips', format: 'path_array' },
+  { pattern: /^form9$/, apiField: 'form9', format: 'url_string' },
+  { pattern: /^ssm$/, apiField: 'ssm', format: 'url_string' },
+  { pattern: /^ic$/, apiField: 'ic', format: 'url_string' },
   { pattern: /^supplementaryDoc_/, apiField: 'supplementaryDoc', format: 'path_only' },
 ]
 
