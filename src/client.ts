@@ -162,13 +162,15 @@ export class BorrowerApiClient {
         const formData = new FormData()
         formData.append('file', fileBuffer, fileName)
 
+        // Spread all authenticated headers except Content-Type — FormData
+        // provides its own multipart Content-Type with the boundary token.
+        const { 'Content-Type': _ct, ...baseHeaders } = this.authenticatedHeaders(token)
         const { data } = await axios.post(
           this.resolveUrl(BorrowerEndpoint.UPLOAD_FILE),
           formData,
           {
             headers: {
-              Authorization: `Bearer ${token}`,
-              ...this.gatewayHeaders(),
+              ...baseHeaders,
               ...formData.getHeaders(),
             },
             timeout: 60_000,
