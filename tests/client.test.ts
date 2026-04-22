@@ -108,6 +108,45 @@ describe('BorrowerApiClient.createConsentEvent', () => {
     expect(consentCall[0]).toContain('/ihs/createConsentEvent/IHS-42')
   })
 
+  it('sends X-Finxtract-Subscription-Key header when finxtractApiKey is configured', async () => {
+    // SYS-2150: the per-tenant FinXtract key must reach finsys-api so OCR calls
+    // are attributed to the correct billing subscriber.
+    const client = new BorrowerApiClient({
+      environment: BorrowerEnvironment.STAGING,
+      credentials: {
+        clientId: 'test-client-id',
+        clientSecret: 'test-client-secret',
+        finxtractApiKey: 'my-apim-subscription-key',
+      },
+    })
+
+    mockLogin()
+    mockedAxios.post.mockResolvedValueOnce({
+      data: { data: { id: 1 } },
+    } as any)
+
+    await client.createConsentEvent('IHS-1', { consentDefinitionId: 1, consentGiven: true })
+
+    const consentCall = mockedAxios.post.mock.calls[1]
+    const headers = consentCall[2]?.headers as Record<string, string>
+    expect(headers['X-Finxtract-Subscription-Key']).toBe('my-apim-subscription-key')
+  })
+
+  it('omits X-Finxtract-Subscription-Key header when finxtractApiKey is not configured', async () => {
+    const client = makeClient() // no finxtractApiKey in makeConfig()
+
+    mockLogin()
+    mockedAxios.post.mockResolvedValueOnce({
+      data: { data: { id: 1 } },
+    } as any)
+
+    await client.createConsentEvent('IHS-1', { consentDefinitionId: 1, consentGiven: true })
+
+    const consentCall = mockedAxios.post.mock.calls[1]
+    const headers = consentCall[2]?.headers as Record<string, string>
+    expect(headers['X-Finxtract-Subscription-Key']).toBeUndefined()
+  })
+
   it('sends authenticated headers with gateway key', async () => {
     const client = makeClient()
 

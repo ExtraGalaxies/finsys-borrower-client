@@ -33,6 +33,8 @@ export interface BorrowerClientConfig {
     clientId: string
     clientSecret: string
     gatewayKey?: string
+    /** SYS-2150: per-tenant FinXtract APIM subscription key for OCR billing attribution. */
+    finxtractApiKey?: string
   }
   /** Optional per-endpoint full URL overrides */
   endpointOverrides?: Partial<Record<BorrowerEndpoint, string>>

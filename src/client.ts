@@ -117,7 +117,7 @@ export class BorrowerApiClient {
    * Build authenticated headers for API requests.
    */
   private authenticatedHeaders(token: string): Record<string, string> {
-    return {
+    const headers: Record<string, string> = {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',
@@ -126,6 +126,11 @@ export class BorrowerApiClient {
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       ...this.gatewayHeaders(),
     }
+    // SYS-2150: forward per-tenant FinXtract key so finsys-api can attribute OCR billing correctly.
+    if (this.config.credentials.finxtractApiKey) {
+      headers['X-Finxtract-Subscription-Key'] = this.config.credentials.finxtractApiKey
+    }
+    return headers
   }
 
   /**
@@ -157,13 +162,15 @@ export class BorrowerApiClient {
         const formData = new FormData()
         formData.append('file', fileBuffer, fileName)
 
+        // Spread all authenticated headers except Content-Type — FormData
+        // provides its own multipart Content-Type with the boundary token.
+        const { 'Content-Type': _ct, ...baseHeaders } = this.authenticatedHeaders(token)
         const { data } = await axios.post(
           this.resolveUrl(BorrowerEndpoint.UPLOAD_FILE),
           formData,
           {
             headers: {
-              Authorization: `Bearer ${token}`,
-              ...this.gatewayHeaders(),
+              ...baseHeaders,
               ...formData.getHeaders(),
             },
             timeout: 60_000,
