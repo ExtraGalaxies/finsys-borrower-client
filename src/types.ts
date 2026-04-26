@@ -1,4 +1,8 @@
-import { getBaseFieldSpecMap } from '@finsys/core'
+import {
+  resolvePayloadTransfer,
+  type FileFieldFormat,
+  type PayloadTransferRule,
+} from './payload-transfer.js'
 
 export enum BorrowerEnvironment {
   STAGING = 'staging',
@@ -114,57 +118,14 @@ const DEFAULT_NON_UPDATABLE_FIELDS = new Set([
 ])
 
 /**
- * Convention-based mapping rules for file fields → FinSys API document format.
- *
- * Field names in @finsys/core base specs match API field names directly.
- * These rules define the serialization format for each file field pattern:
- * - `bank_statement_tN`    → `bankStatements: [{ path, month: N, year }]`
- * - `financials*`          → `financialStatements: [{ path, year: ordinal }]`
- * - `epf_statement_tN`     → `epfStatements: [{ path, month: N, year }]`
- * - `payslip_statement_tN` → `payslips: [{ path, month: N, year }]`
- * - `form9`                → `form9: "url"`
- * - `ssm`                  → `ssm: "url"`
- * - `ic`                   → `ic: "url"`
- * - `supplementaryDoc_*`   → `supplementaryDoc: [{ path }]`
+ * Document-routing rules now live in `./payload-transfer.ts`. The
+ * `resolvePayloadTransfer()` helper imported above returns a
+ * discriminated union covering both `ihs_column` (passthrough scalar)
+ * and `document` (file-field routing) — see that module for the full
+ * registry + rationale (SYS-2347).
  */
-type FileFieldFormat = 'path_array' | 'url_string' | 'path_only'
 
-const FILE_FIELD_RULES: {
-  pattern: RegExp
-  apiField: string
-  format: FileFieldFormat
-}[] = [
-  { pattern: /^bank_statement_t(\d+)$/, apiField: 'bankStatements', format: 'path_array' },
-  { pattern: /^financials/, apiField: 'financialStatements', format: 'path_array' },
-  { pattern: /^epf_statement_t(\d+)$/, apiField: 'epfStatements', format: 'path_array' },
-  { pattern: /^payslip_statement_t(\d+)$/, apiField: 'payslips', format: 'path_array' },
-  { pattern: /^form9$/, apiField: 'form9', format: 'url_string' },
-  { pattern: /^ssm$/, apiField: 'ssm', format: 'url_string' },
-  { pattern: /^ic$/, apiField: 'ic', format: 'url_string' },
-  { pattern: /^supplementaryDoc_/, apiField: 'supplementaryDoc', format: 'path_only' },
-]
-
-interface ResolvedMapping {
-  apiField: string
-  format: FileFieldFormat
-  /** For bank_statement_tN: the N offset. undefined for other fields. */
-  tIndex?: number
-}
-
-/** Match a file field name against known conventions. */
-function resolveFieldMapping(fieldName: string): ResolvedMapping | undefined {
-  for (const rule of FILE_FIELD_RULES) {
-    const match = fieldName.match(rule.pattern)
-    if (match) {
-      return {
-        apiField: rule.apiField,
-        format: rule.format,
-        tIndex: match[1] ? Number.parseInt(match[1], 10) : undefined,
-      }
-    }
-  }
-  return undefined
-}
+type DocumentRule = Extract<PayloadTransferRule, { kind: 'document' }>
 
 /**
  * Build the two-step submission payloads from form data.
@@ -173,17 +134,20 @@ function resolveFieldMapping(fieldName: string): ResolvedMapping | undefined {
  * 1. **Create** (POST): Submit metadata only → returns `ihsId`
  * 2. **Finalize** (PATCH): Send documents + metadata with `ihsId`
  *
- * Uses `@finsys/core`'s base field specs as an allowlist — only fields present
- * in the base specs are included in payloads. File fields are provided separately
- * and mapped to the API format using field name conventions:
+ * Field routing is governed by the payload-transfer registry in
+ * `./payload-transfer.ts`. Each formData key resolves to one of:
+ * - `ihs_column` — top-level scalar passthrough on the payload
+ * - `document`   — misuse: caller passed a file URL as a scalar; warn
+ *                  (or throw in strict mode) and skip
+ * - unknown      — drop silently (or throw in strict mode)
  *
+ * File fields are provided separately and mapped to API document
+ * arrays per the same registry's document patterns:
  * - `bank_statement_tN`    → `bankStatements: [{ path, month: N, year }]`
  * - `financials*`          → `financialStatements: [{ path, year: ordinal }]`
  * - `epf_statement_tN`     → `epfStatements: [{ path, month: N, year }]`
  * - `payslip_statement_tN` → `payslips: [{ path, month: N, year }]`
- * - `form9`                → `form9: "url"`
- * - `ssm`                  → `ssm: "url"`
- * - `ic`                   → `ic: "url"`
+ * - `form9` / `ssm` / `ic` → top-level URL string
  * - Unrecognized file fields → routed to `supplementaryDoc: [{ path }]`
  *
  * @param formData - The validated form data (metadata only, no file fields)
@@ -191,34 +155,55 @@ function resolveFieldMapping(fieldName: string): ResolvedMapping | undefined {
  * @param now - Optional date for bank statement year computation (defaults to current date)
  * @param options - Optional configuration
  * @param options.nonUpdatableFields - Additional field names to exclude from the finalize payload
+ * @param options.strict - When true, throw on caller misuse (document field
+ *                         passed as scalar, unknown formData key) instead of
+ *                         the default warn-and-skip. Recommended for new
+ *                         callers; opt-in for backcompat with existing ones.
  */
 export function buildSubmissionPayloads(
   formData: Record<string, unknown>,
   fileFields: Record<string, unknown>,
   now?: Date,
-  options?: { nonUpdatableFields?: string[] }
+  options?: { nonUpdatableFields?: string[]; strict?: boolean }
 ): SubmissionPayloads {
   const currentYear = (now ?? new Date()).getFullYear()
-  const baseSpecs = getBaseFieldSpecMap()
+  const strict = options?.strict ?? false
 
-  // Filter formData through base specs allowlist
+  // Route each formData key through the payload-transfer registry.
   const createPayload: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(formData)) {
-    if (baseSpecs.has(key)) {
-      createPayload[key] = value
+    const rule = resolvePayloadTransfer(key)
+    if (!rule) {
+      if (strict) {
+        throw new Error(
+          `buildSubmissionPayloads: unknown field "${key}" in formData (not in payload-transfer registry)`
+        )
+      }
+      continue
     }
+    if (rule.kind === 'ihs_column') {
+      createPayload[key] = value
+    } else if (rule.kind === 'document') {
+      // Caller misuse — file URL passed as a top-level scalar instead of
+      // via fileFields. Pre-fix this silently landed on the payload as a
+      // bogus column write and crashed finsys-api's TypeORM (SYS-2321).
+      const msg = `buildSubmissionPayloads: formData contains document field "${key}" — pass it via the fileFields argument instead`
+      if (strict) throw new Error(msg)
+      console.warn(msg)
+    }
+    // form_only: skip silently (no entries today; reserved for future)
   }
 
   // Process file fields: map known patterns, route unknowns to supplementaryDoc
-  const mappedFields: { name: string; mapping: ResolvedMapping }[] = []
+  const mappedFields: { name: string; mapping: DocumentRule }[] = []
   const unmappedFileFields: { name: string; url: string }[] = []
 
   for (const name of Object.keys(fileFields)) {
-    const mapping = resolveFieldMapping(name)
-    if (mapping) {
-      mappedFields.push({ name, mapping })
+    const rule = resolvePayloadTransfer(name)
+    if (rule?.kind === 'document') {
+      mappedFields.push({ name, mapping: rule })
     } else {
-      // Not in FILE_FIELD_RULES — route to supplementaryDoc
+      // Not a known document pattern — route to supplementaryDoc.
       const url = extractUrl(fileFields[name])
       if (url) {
         unmappedFileFields.push({ name, url })
@@ -229,7 +214,7 @@ export function buildSubmissionPayloads(
   // Group mapped file fields by apiField
   interface DocEntry {
     url: string
-    mapping: ResolvedMapping
+    mapping: DocumentRule
   }
   const docGroups = new Map<string, { format: FileFieldFormat; entries: DocEntry[] }>()
 

@@ -14,3 +14,10 @@ export {
   type ConsentEventResult,
   type SubmissionPayloads,
 } from './types.js'
+export {
+  resolvePayloadTransfer,
+  listDocumentPatterns,
+  type FileFieldFormat,
+  type PayloadTransferKind,
+  type PayloadTransferRule,
+} from './payload-transfer.js'

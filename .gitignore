@@ -1,5 +1,8 @@
 # Dependencies
 node_modules
+# Mac Finder dup-on-paste creates names like "node_modules 2", "node_modules 3"
+# (with a space). Match those without falling foul of glob-escape weirdness.
+node_modules?*
 
 # Build output
 dist
