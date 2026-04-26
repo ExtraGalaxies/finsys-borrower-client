@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { buildSubmissionPayloads } from '../src/types.js'
 
 // Mock uploaded file URLs (as returned by FinSys uploadFile API)
@@ -345,5 +345,69 @@ describe('buildSubmissionPayloads', () => {
       { path: 'https://blob.example.com/nric.pdf' },
       { path: 'https://blob.example.com/extra.pdf' },
     ])
+  })
+})
+
+describe('SYS-2347 regression: caller misuse — file URL in formData instead of fileFields', () => {
+  it('non-strict: warns and does NOT include the document key on createPayload (pre-fix it landed as a top-level scalar and crashed finsys-api)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const formData: Record<string, unknown> = {
+        fullName: 'John Doe',
+        email: 'john@example.com',
+        // The bug: caller put a file URL in formData instead of fileFields.
+        bank_statement_t1: 'https://blob.example.com/jan.pdf',
+      }
+
+      const { createPayload } = buildSubmissionPayloads(formData, {})
+
+      // The real Ihs columns pass through.
+      expect(createPayload.fullName).toBe('John Doe')
+      expect(createPayload.email).toBe('john@example.com')
+      // The misplaced document key does NOT land on the payload — that's
+      // the SYS-2321 fix. Pre-fix this would have been the URL string.
+      expect(createPayload).not.toHaveProperty('bank_statement_t1')
+      // And we yelled about it.
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('bank_statement_t1')
+      )
+    } finally {
+      warnSpy.mockRestore()
+    }
+  })
+
+  it('strict: throws when formData contains a document field name', () => {
+    const formData: Record<string, unknown> = {
+      fullName: 'John Doe',
+      bank_statement_t1: 'https://blob.example.com/jan.pdf',
+    }
+
+    expect(() => buildSubmissionPayloads(formData, {}, undefined, { strict: true }))
+      .toThrow(/bank_statement_t1/)
+  })
+
+  it('strict: throws on unknown formData key (not a document, not in BASE_FIELD_SPECS)', () => {
+    const formData: Record<string, unknown> = {
+      fullName: 'John Doe',
+      mysteryField: 'whatever',
+    }
+
+    expect(() => buildSubmissionPayloads(formData, {}, undefined, { strict: true }))
+      .toThrow(/mysteryField/)
+  })
+
+  it('strict: passes cleanly when caller separates correctly', () => {
+    const formData: Record<string, unknown> = {
+      fullName: 'John Doe',
+      email: 'john@example.com',
+      totalFinancing: 100000,
+    }
+    const fileFields: Record<string, unknown> = {
+      bank_statement_t1: 'https://blob.example.com/jan.pdf',
+    }
+
+    expect(() =>
+      buildSubmissionPayloads(formData, fileFields, undefined, { strict: true })
+    ).not.toThrow()
   })
 })
