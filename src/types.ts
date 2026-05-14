@@ -31,6 +31,26 @@ export interface ConsentEventResult {
   message?: string
 }
 
+/**
+ * Typed upstream error detail surfaced on failed result objects.
+ *
+ * Populated when the underlying axios call receives a response from
+ * finsys-api. All fields are optional: WAF blocks at App Gateway
+ * arrive with no body, so only `status` is set; some legacy paths
+ * return only a `message` string, so `code`/`desc` may be undefined.
+ *
+ * Source shape: `finsys-api` returns errors as `{ err: { code, desc } }`
+ * via its global errorHandler middleware. See SYS-2437.
+ */
+export interface UpstreamErrorDetail {
+  /** Upstream error code (e.g. "APPLICATION_IS_FINALIZED" from finsys-api err.code). */
+  code?: string
+  /** Human-readable upstream error description (finsys-api err.desc). */
+  desc?: string
+  /** HTTP status from the upstream response. */
+  status?: number
+}
+
 export interface BorrowerClientConfig {
   environment: BorrowerEnvironment
   credentials: {
