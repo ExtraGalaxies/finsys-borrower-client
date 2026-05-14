@@ -504,3 +504,78 @@ describe('BorrowerApiClient.getApplicationStatus', () => {
     expect(result.message).toBe('Status check failed (403): Unknown error')
   })
 })
+
+describe('BorrowerApiClient.uploadFile', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockedAxios.isAxiosError = (error: any): error is any =>
+      error?.isAxiosError === true
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('surfaces upstream { err: { code, desc } } as typed upstream field on failure', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Bad Request') as any
+    axiosError.isAxiosError = true
+    axiosError.response = {
+      status: 400,
+      data: { err: { code: 'FILE_TOO_LARGE', desc: 'File exceeds size limit.' } },
+    }
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.uploadFile(Buffer.from('test'), 'doc.pdf')
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({
+      code: 'FILE_TOO_LARGE',
+      desc: 'File exceeds size limit.',
+      status: 400,
+    })
+    expect(result.message).toContain('File exceeds size limit.')
+    expect(result.message).toMatch(/\(400\)/)
+  })
+
+  it('falls back to legacy { message } body shape with status populated', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Server Error') as any
+    axiosError.isAxiosError = true
+    axiosError.response = {
+      status: 500,
+      data: { message: 'Storage backend unavailable' },
+    }
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.uploadFile(Buffer.from('test'), 'doc.pdf')
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: 500 })
+    expect(result.message).toContain('Storage backend unavailable')
+  })
+
+  it('handles missing response body (WAF block) with status only and new message format', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Forbidden') as any
+    axiosError.isAxiosError = true
+    axiosError.response = { status: 403, data: undefined }
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.uploadFile(Buffer.from('test'), 'doc.pdf')
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: 403 })
+    // Regression check: message format MUST include status. Old format was
+    // just 'File upload failed' with no parens — the lead-gen-ui classifier's
+    // STATUS_IN_MESSAGE regex never matched, causing 403 WAF blocks on upload
+    // to misclassify as 'unknown' instead of 'blocked'.
+    expect(result.message).toBe('File upload failed (403): Unknown error')
+  })
+})

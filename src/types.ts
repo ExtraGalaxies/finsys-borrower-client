@@ -74,6 +74,8 @@ export interface UploadResult {
   url?: string
   data?: unknown
   message?: string
+  /** Typed upstream error detail on failure (SYS-2437). Undefined on success. */
+  upstream?: UpstreamErrorDetail
 }
 
 export interface SubmissionResult {

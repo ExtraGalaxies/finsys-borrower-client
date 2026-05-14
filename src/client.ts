@@ -186,9 +186,11 @@ export class BorrowerApiClient {
       })
     } catch (error) {
       if (axios.isAxiosError(error)) {
+        const { upstream, apiMessage } = BorrowerApiClient.extractUpstream(error)
         return {
           success: false,
-          message: error.response?.data?.message || 'File upload failed',
+          message: `File upload failed (${upstream.status}): ${apiMessage}`,
+          upstream,
         }
       }
       return {
