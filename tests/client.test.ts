@@ -366,3 +366,73 @@ describe('BorrowerApiClient.submitApplication', () => {
     expect(result.upstream).toBeUndefined()
   })
 })
+
+describe('BorrowerApiClient.updateApplication', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockedAxios.isAxiosError = (error: any): error is any =>
+      error?.isAxiosError === true
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('surfaces upstream { err: { code, desc } } as typed upstream field on failure', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Conflict') as any
+    axiosError.isAxiosError = true
+    axiosError.response = {
+      status: 409,
+      data: { err: { code: 'APPLICATION_IS_FINALIZED', desc: 'This IHS application is finalized.' } },
+    }
+    mockedAxios.patch.mockRejectedValueOnce(axiosError)
+
+    const result = await client.updateApplication('IHS-42', { status: 'APPLICATION_FINALIZED' })
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({
+      code: 'APPLICATION_IS_FINALIZED',
+      desc: 'This IHS application is finalized.',
+      status: 409,
+    })
+    expect(result.message).toContain('This IHS application is finalized.')
+  })
+
+  it('falls back to legacy { message } body shape with status populated', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Server Error') as any
+    axiosError.isAxiosError = true
+    axiosError.response = {
+      status: 500,
+      data: { message: 'Internal server error' },
+    }
+    mockedAxios.patch.mockRejectedValueOnce(axiosError)
+
+    const result = await client.updateApplication('IHS-42', {})
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: 500 })
+    expect(result.message).toContain('Internal server error')
+  })
+
+  it('handles missing response body with status only', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Forbidden') as any
+    axiosError.isAxiosError = true
+    axiosError.response = { status: 403, data: undefined }
+    mockedAxios.patch.mockRejectedValueOnce(axiosError)
+
+    const result = await client.updateApplication('IHS-42', {})
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: 403 })
+    expect(result.message).toBe('Update failed (403): Unknown error')
+  })
+})
