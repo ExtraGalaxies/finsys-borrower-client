@@ -275,6 +275,29 @@ describe('BorrowerApiClient.createConsentEvent', () => {
     const consentCall = mockedAxios.post.mock.calls[1]
     expect(consentCall[1]).toEqual(payload)
   })
+
+  it('falls back through err.desc when response uses the structured { err: { code, desc } } shape', async () => {
+    // Regression for SYS-2437: previously fell through to 'Unknown error'.
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Bad Request') as any
+    axiosError.isAxiosError = true
+    axiosError.response = {
+      status: 400,
+      data: { err: { code: 'CONSENT_ALREADY_RECORDED', desc: 'Consent already recorded for this definition.' } },
+    }
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.createConsentEvent('IHS-1', {
+      consentDefinitionId: 1,
+      consentGiven: true,
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.message).toContain('Consent already recorded for this definition.')
+    expect(result.message).toContain('400')
+  })
 })
 
 describe('BorrowerApiClient.submitApplication', () => {

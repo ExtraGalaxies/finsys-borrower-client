@@ -407,9 +407,10 @@ export class BorrowerApiClient {
       })
     } catch (error) {
       if (axios.isAxiosError(error)) {
+        const { upstream, apiMessage } = BorrowerApiClient.extractUpstream(error)
         return {
           success: false,
-          message: `Consent creation failed (${error.response?.status}): ${error.response?.data?.message || 'Unknown error'}`,
+          message: `Consent creation failed (${upstream.status}): ${apiMessage}`,
         }
       }
       return {
