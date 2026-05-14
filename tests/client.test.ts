@@ -310,4 +310,59 @@ describe('BorrowerApiClient.submitApplication', () => {
     })
     expect(result.message).toContain('Invalid IHS status.')
   })
+
+  it('falls back to legacy { message } body shape with status populated', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Server Error') as any
+    axiosError.isAxiosError = true
+    axiosError.response = {
+      status: 500,
+      data: { message: 'Internal server error' },
+    }
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.submitApplication({ totalFinancing: 100000 })
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: 500 })
+    expect(result.message).toContain('Internal server error')
+    expect(result.message).toContain('500')
+  })
+
+  it('handles missing response body (WAF block) with status only', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Forbidden') as any
+    axiosError.isAxiosError = true
+    axiosError.response = { status: 403, data: undefined }
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.submitApplication({ totalFinancing: 100000 })
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: 403 })
+    expect(result.message).toBe('Submission failed (403): Unknown error')
+  })
+
+  it('preserves partial-success branch (400 with data.ihsId) and does not populate upstream', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Bad Request') as any
+    axiosError.isAxiosError = true
+    axiosError.response = {
+      status: 400,
+      data: { data: { ihsId: 'IHS-12345' } },
+    }
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.submitApplication({ totalFinancing: 100000 })
+
+    expect(result.success).toBe(true)
+    expect(result.ihsId).toBe('IHS-12345')
+    expect(result.upstream).toBeUndefined()
+  })
 })
