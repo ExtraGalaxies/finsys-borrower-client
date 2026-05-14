@@ -276,3 +276,38 @@ describe('BorrowerApiClient.createConsentEvent', () => {
     expect(consentCall[1]).toEqual(payload)
   })
 })
+
+describe('BorrowerApiClient.submitApplication', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockedAxios.isAxiosError = (error: any): error is any =>
+      error?.isAxiosError === true
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('surfaces upstream { err: { code, desc } } as typed upstream field on failure', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Bad Request') as any
+    axiosError.isAxiosError = true
+    axiosError.response = {
+      status: 400,
+      data: { err: { code: 'INVALID_STATUS', desc: 'Invalid IHS status.' } },
+    }
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.submitApplication({ totalFinancing: 100000 })
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({
+      code: 'INVALID_STATUS',
+      desc: 'Invalid IHS status.',
+      status: 400,
+    })
+    expect(result.message).toContain('Invalid IHS status.')
+  })
+})

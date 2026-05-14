@@ -83,6 +83,8 @@ export interface SubmissionResult {
   message?: string
   errors?: Record<string, string[]>
   data?: unknown
+  /** Typed upstream error detail on failure (SYS-2437). Undefined on success. */
+  upstream?: UpstreamErrorDetail
 }
 
 export interface UpdateResult {
