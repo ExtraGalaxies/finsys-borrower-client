@@ -314,13 +314,12 @@ export class BorrowerApiClient {
       })
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        const status = error.response?.status
-        const respData = error.response?.data
-        const apiMessage = respData?.message || respData?.error || 'Unknown error'
+        const { upstream, apiMessage } = BorrowerApiClient.extractUpstream(error)
         return {
           success: false,
           ihsId,
-          message: `Status check failed (${status}): ${apiMessage}`,
+          message: `Status check failed (${upstream.status}): ${apiMessage}`,
+          upstream,
         }
       }
       return {
