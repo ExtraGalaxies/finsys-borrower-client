@@ -7,6 +7,7 @@ export {
   type BorrowerClientConfig,
   type UploadResult,
   type UploadedFileRef,
+  type UpstreamErrorDetail,
   type SubmissionResult,
   type UpdateResult,
   type StatusResult,

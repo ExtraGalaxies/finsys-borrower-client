@@ -1,9 +1,10 @@
-import axios from 'axios'
+import axios, { type AxiosError } from 'axios'
 import FormData from 'form-data'
 import { BASE_URLS, ENDPOINT_PATHS } from './environments.js'
 import type {
   BorrowerClientConfig,
   CachedToken,
+  UpstreamErrorDetail,
   UploadResult,
   SubmissionResult,
   UpdateResult,
@@ -185,9 +186,13 @@ export class BorrowerApiClient {
       })
     } catch (error) {
       if (axios.isAxiosError(error)) {
+        const { upstream, apiMessage } = BorrowerApiClient.extractUpstream(error)
+        const statusPart = upstream.status !== undefined ? ` (${upstream.status})` : ''
         return {
           success: false,
-          message: error.response?.data?.message || 'File upload failed',
+          message: `File upload failed${statusPart}: ${apiMessage}`,
+          data: error.response?.data,
+          upstream,
         }
       }
       return {
@@ -232,20 +237,53 @@ export class BorrowerApiClient {
           }
         }
 
-        const status = error.response?.status
-        const respData = error.response?.data
-        const apiMessage = respData?.message || respData?.error || 'Unknown error'
+        const { upstream, apiMessage } = BorrowerApiClient.extractUpstream(error)
+        const statusPart = upstream.status !== undefined ? ` (${upstream.status})` : ''
         return {
           success: false,
-          message: `Submission failed (${status}): ${apiMessage}`,
-          errors: respData?.errors,
-          data: respData,
+          message: `Submission failed${statusPart}: ${apiMessage}`,
+          errors: (error.response?.data as { errors?: Record<string, string[]> } | undefined)?.errors,
+          data: error.response?.data,
+          upstream,
         }
       }
       return {
         success: false,
         message: 'An unexpected error occurred during submission',
       }
+    }
+  }
+
+  /**
+   * Extract typed upstream error detail and a human-readable message from an
+   * axios error response. Centralizes the fallback chain used by every
+   * axios-error catch block in this client. See SYS-2437.
+   *
+   * Fallback for the message string:
+   *   err.desc  ->  err.code  ->  respData.message  ->  respData.error  ->  'Unknown error'
+   *
+   * The structured `upstream` object always includes the HTTP status when one
+   * is present; `code`/`desc` are only set when the response body has the
+   * finsys-api { err: { code, desc } } shape.
+   */
+  private static extractUpstream(error: AxiosError): {
+    upstream: UpstreamErrorDetail
+    apiMessage: string
+  } {
+    const status = error.response?.status
+    const respData = error.response?.data as Record<string, unknown> | undefined
+    const err = respData?.err as { code?: string; desc?: string } | undefined
+
+    const apiMessage =
+      err?.desc ||
+      err?.code ||
+      (respData?.message as string | undefined) ||
+      (respData?.error as string | undefined) ||
+      'Unknown error'
+
+    return {
+      upstream: { code: err?.code, desc: err?.desc, status },
+      apiMessage,
     }
   }
 
@@ -281,13 +319,14 @@ export class BorrowerApiClient {
       })
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        const status = error.response?.status
-        const respData = error.response?.data
-        const apiMessage = respData?.message || respData?.error || 'Unknown error'
+        const { upstream, apiMessage } = BorrowerApiClient.extractUpstream(error)
+        const statusPart = upstream.status !== undefined ? ` (${upstream.status})` : ''
         return {
           success: false,
           ihsId,
-          message: `Status check failed (${status}): ${apiMessage}`,
+          message: `Status check failed${statusPart}: ${apiMessage}`,
+          data: error.response?.data,
+          upstream,
         }
       }
       return {
@@ -328,13 +367,13 @@ export class BorrowerApiClient {
       })
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        const status = error.response?.status
-        const respData = error.response?.data
-        const apiMessage = respData?.message || respData?.error || 'Unknown error'
+        const { upstream, apiMessage } = BorrowerApiClient.extractUpstream(error)
+        const statusPart = upstream.status !== undefined ? ` (${upstream.status})` : ''
         return {
           success: false,
-          message: `Update failed (${status}): ${apiMessage}`,
-          data: respData,
+          message: `Update failed${statusPart}: ${apiMessage}`,
+          data: error.response?.data,
+          upstream,
         }
       }
       return {
@@ -374,9 +413,11 @@ export class BorrowerApiClient {
       })
     } catch (error) {
       if (axios.isAxiosError(error)) {
+        const { upstream, apiMessage } = BorrowerApiClient.extractUpstream(error)
+        const statusPart = upstream.status !== undefined ? ` (${upstream.status})` : ''
         return {
           success: false,
-          message: `Consent creation failed (${error.response?.status}): ${error.response?.data?.message || 'Unknown error'}`,
+          message: `Consent creation failed${statusPart}: ${apiMessage}`,
         }
       }
       return {

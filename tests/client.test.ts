@@ -275,4 +275,423 @@ describe('BorrowerApiClient.createConsentEvent', () => {
     const consentCall = mockedAxios.post.mock.calls[1]
     expect(consentCall[1]).toEqual(payload)
   })
+
+  it('falls back through err.desc when response uses the structured { err: { code, desc } } shape', async () => {
+    // Regression for SYS-2437: previously fell through to 'Unknown error'.
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Bad Request') as any
+    axiosError.isAxiosError = true
+    axiosError.response = {
+      status: 400,
+      data: { err: { code: 'CONSENT_ALREADY_RECORDED', desc: 'Consent already recorded for this definition.' } },
+    }
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.createConsentEvent('IHS-1', {
+      consentDefinitionId: 1,
+      consentGiven: true,
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.message).toContain('Consent already recorded for this definition.')
+    expect(result.message).toContain('400')
+  })
+
+  it('omits status from message when axios error has no response (network failure)', async () => {
+    // Regression: previously rendered "Consent creation failed (undefined): ..."
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('timeout') as any
+    axiosError.isAxiosError = true
+    axiosError.code = 'ECONNABORTED'
+    // no response property — simulates a network timeout / DNS failure
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.createConsentEvent('IHS-1', {
+      consentDefinitionId: 1,
+      consentGiven: true,
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.message).toBe('Consent creation failed: Unknown error')
+    expect(result.message).not.toContain('undefined')
+  })
+})
+
+describe('BorrowerApiClient.submitApplication', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockedAxios.isAxiosError = (error: any): error is any =>
+      error?.isAxiosError === true
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('surfaces upstream { err: { code, desc } } as typed upstream field on failure', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Bad Request') as any
+    axiosError.isAxiosError = true
+    axiosError.response = {
+      status: 400,
+      data: { err: { code: 'INVALID_STATUS', desc: 'Invalid IHS status.' } },
+    }
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.submitApplication({ totalFinancing: 100000 })
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({
+      code: 'INVALID_STATUS',
+      desc: 'Invalid IHS status.',
+      status: 400,
+    })
+    expect(result.message).toContain('Invalid IHS status.')
+  })
+
+  it('falls back to legacy { message } body shape with status populated', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Server Error') as any
+    axiosError.isAxiosError = true
+    axiosError.response = {
+      status: 500,
+      data: { message: 'Internal server error' },
+    }
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.submitApplication({ totalFinancing: 100000 })
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: 500 })
+    expect(result.message).toContain('Internal server error')
+    expect(result.message).toContain('500')
+  })
+
+  it('handles missing response body (WAF block) with status only', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Forbidden') as any
+    axiosError.isAxiosError = true
+    axiosError.response = { status: 403, data: undefined }
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.submitApplication({ totalFinancing: 100000 })
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: 403 })
+    expect(result.message).toBe('Submission failed (403): Unknown error')
+  })
+
+  it('preserves partial-success branch (400 with data.ihsId) and does not populate upstream', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Bad Request') as any
+    axiosError.isAxiosError = true
+    axiosError.response = {
+      status: 400,
+      data: { data: { ihsId: 'IHS-12345' } },
+    }
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.submitApplication({ totalFinancing: 100000 })
+
+    expect(result.success).toBe(true)
+    expect(result.ihsId).toBe('IHS-12345')
+    expect(result.upstream).toBeUndefined()
+  })
+
+  it('omits status from message when axios error has no response (network failure)', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('timeout') as any
+    axiosError.isAxiosError = true
+    axiosError.code = 'ECONNABORTED'
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.submitApplication({ totalFinancing: 100000 })
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: undefined })
+    expect(result.message).toBe('Submission failed: Unknown error')
+    expect(result.message).not.toContain('undefined')
+  })
+})
+
+describe('BorrowerApiClient.updateApplication', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockedAxios.isAxiosError = (error: any): error is any =>
+      error?.isAxiosError === true
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('surfaces upstream { err: { code, desc } } as typed upstream field on failure', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Conflict') as any
+    axiosError.isAxiosError = true
+    axiosError.response = {
+      status: 409,
+      data: { err: { code: 'APPLICATION_IS_FINALIZED', desc: 'This IHS application is finalized.' } },
+    }
+    mockedAxios.patch.mockRejectedValueOnce(axiosError)
+
+    const result = await client.updateApplication('IHS-42', { status: 'APPLICATION_FINALIZED' })
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({
+      code: 'APPLICATION_IS_FINALIZED',
+      desc: 'This IHS application is finalized.',
+      status: 409,
+    })
+    expect(result.message).toContain('This IHS application is finalized.')
+  })
+
+  it('falls back to legacy { message } body shape with status populated', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Server Error') as any
+    axiosError.isAxiosError = true
+    axiosError.response = {
+      status: 500,
+      data: { message: 'Internal server error' },
+    }
+    mockedAxios.patch.mockRejectedValueOnce(axiosError)
+
+    const result = await client.updateApplication('IHS-42', {})
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: 500 })
+    expect(result.message).toContain('Internal server error')
+  })
+
+  it('handles missing response body with status only', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Forbidden') as any
+    axiosError.isAxiosError = true
+    axiosError.response = { status: 403, data: undefined }
+    mockedAxios.patch.mockRejectedValueOnce(axiosError)
+
+    const result = await client.updateApplication('IHS-42', {})
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: 403 })
+    expect(result.message).toBe('Update failed (403): Unknown error')
+  })
+
+  it('omits status from message when axios error has no response (network failure)', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('timeout') as any
+    axiosError.isAxiosError = true
+    axiosError.code = 'ECONNABORTED'
+    mockedAxios.patch.mockRejectedValueOnce(axiosError)
+
+    const result = await client.updateApplication('IHS-42', {})
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: undefined })
+    expect(result.message).toBe('Update failed: Unknown error')
+    expect(result.message).not.toContain('undefined')
+  })
+})
+
+describe('BorrowerApiClient.getApplicationStatus', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockedAxios.isAxiosError = (error: any): error is any =>
+      error?.isAxiosError === true
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('surfaces upstream { err: { code, desc } } as typed upstream field on failure', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Not Found') as any
+    axiosError.isAxiosError = true
+    axiosError.response = {
+      status: 404,
+      data: { err: { code: 'IHS_NOT_FOUND', desc: 'IHS application not found.' } },
+    }
+    mockedAxios.get.mockRejectedValueOnce(axiosError)
+
+    const result = await client.getApplicationStatus('IHS-999')
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({
+      code: 'IHS_NOT_FOUND',
+      desc: 'IHS application not found.',
+      status: 404,
+    })
+    expect(result.message).toContain('IHS application not found.')
+    expect(result.ihsId).toBe('IHS-999')
+    // SYS-2437 follow-up: data field is now populated on failure for symmetry with the other methods
+    expect(result.data).toEqual({ err: { code: 'IHS_NOT_FOUND', desc: 'IHS application not found.' } })
+  })
+
+  it('falls back to legacy { error } body shape with status populated', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Server Error') as any
+    axiosError.isAxiosError = true
+    axiosError.response = { status: 500, data: { error: 'Database unavailable' } }
+    mockedAxios.get.mockRejectedValueOnce(axiosError)
+
+    const result = await client.getApplicationStatus('IHS-1')
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: 500 })
+    expect(result.message).toContain('Database unavailable')
+  })
+
+  it('handles missing response body with status only', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Forbidden') as any
+    axiosError.isAxiosError = true
+    axiosError.response = { status: 403, data: undefined }
+    mockedAxios.get.mockRejectedValueOnce(axiosError)
+
+    const result = await client.getApplicationStatus('IHS-1')
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: 403 })
+    expect(result.message).toBe('Status check failed (403): Unknown error')
+  })
+
+  it('omits status from message when axios error has no response (network failure)', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('timeout') as any
+    axiosError.isAxiosError = true
+    axiosError.code = 'ECONNABORTED'
+    mockedAxios.get.mockRejectedValueOnce(axiosError)
+
+    const result = await client.getApplicationStatus('IHS-1')
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: undefined })
+    expect(result.message).toBe('Status check failed: Unknown error')
+    expect(result.message).not.toContain('undefined')
+  })
+})
+
+describe('BorrowerApiClient.uploadFile', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockedAxios.isAxiosError = (error: any): error is any =>
+      error?.isAxiosError === true
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('surfaces upstream { err: { code, desc } } as typed upstream field on failure', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Bad Request') as any
+    axiosError.isAxiosError = true
+    axiosError.response = {
+      status: 400,
+      data: { err: { code: 'FILE_TOO_LARGE', desc: 'File exceeds size limit.' } },
+    }
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.uploadFile(Buffer.from('test'), 'doc.pdf')
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({
+      code: 'FILE_TOO_LARGE',
+      desc: 'File exceeds size limit.',
+      status: 400,
+    })
+    expect(result.message).toContain('File exceeds size limit.')
+    expect(result.message).toMatch(/\(400\)/)
+    // SYS-2437 follow-up: data field is now populated on failure for symmetry with the other methods
+    expect(result.data).toEqual({ err: { code: 'FILE_TOO_LARGE', desc: 'File exceeds size limit.' } })
+  })
+
+  it('falls back to legacy { message } body shape with status populated', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Server Error') as any
+    axiosError.isAxiosError = true
+    axiosError.response = {
+      status: 500,
+      data: { message: 'Storage backend unavailable' },
+    }
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.uploadFile(Buffer.from('test'), 'doc.pdf')
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: 500 })
+    expect(result.message).toContain('Storage backend unavailable')
+  })
+
+  it('handles missing response body (WAF block) with status only and new message format', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('Forbidden') as any
+    axiosError.isAxiosError = true
+    axiosError.response = { status: 403, data: undefined }
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.uploadFile(Buffer.from('test'), 'doc.pdf')
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: 403 })
+    // Regression check: message format MUST include status. Old format was
+    // just 'File upload failed' with no parens — the lead-gen-ui classifier's
+    // STATUS_IN_MESSAGE regex never matched, causing 403 WAF blocks on upload
+    // to misclassify as 'unknown' instead of 'blocked'.
+    expect(result.message).toBe('File upload failed (403): Unknown error')
+  })
+
+  it('omits status from message when axios error has no response (network failure)', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('timeout') as any
+    axiosError.isAxiosError = true
+    axiosError.code = 'ECONNABORTED'
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.uploadFile(Buffer.from('test'), 'doc.pdf')
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: undefined })
+    expect(result.message).toBe('File upload failed: Unknown error')
+    expect(result.message).not.toContain('undefined')
+  })
 })

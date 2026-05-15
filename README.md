@@ -134,11 +134,25 @@ interface UploadedFileRef {
   name: string
 }
 
+/**
+ * Typed upstream error detail surfaced on failed result objects (3.5.0+).
+ * Populated when the underlying axios call receives a response from finsys-api.
+ * All fields optional: WAF blocks at App Gateway arrive with no body, so only
+ * `status` is set. Some legacy paths return only a `message` string, so
+ * `code`/`desc` may be undefined.
+ */
+interface UpstreamErrorDetail {
+  code?: string    // e.g. "APPLICATION_IS_FINALIZED"
+  desc?: string    // human-readable description from finsys-api err.desc
+  status?: number  // HTTP status from the upstream response
+}
+
 interface UploadResult {
   success: boolean
   url?: string
   data?: unknown
   message?: string
+  upstream?: UpstreamErrorDetail  // 3.5.0+, on failure only
 }
 
 interface SubmissionResult {
@@ -148,12 +162,23 @@ interface SubmissionResult {
   message?: string
   errors?: Record<string, string[]>
   data?: unknown
+  upstream?: UpstreamErrorDetail  // 3.5.0+, on failure only
 }
 
 interface UpdateResult {
   success: boolean
   message?: string
   data?: unknown
+  upstream?: UpstreamErrorDetail  // 3.5.0+, on failure only
+}
+
+interface StatusResult {
+  success: boolean
+  ihsId?: string
+  status?: string
+  message?: string
+  data?: unknown
+  upstream?: UpstreamErrorDetail  // 3.5.0+, on failure only
 }
 
 interface ConnectionTestResult {
@@ -166,6 +191,29 @@ interface SubmissionPayloads {
   finalizePayload: Record<string, unknown>
 }
 ```
+
+## Reading upstream errors (3.5.0+)
+
+When a request fails, the result includes a typed `upstream` field with the
+upstream HTTP status and (when available) the finsys-api error code and
+description:
+
+```typescript
+const result = await client.updateApplication(ihsId, payload)
+
+if (!result.success) {
+  console.error('Update failed:', {
+    status: result.upstream?.status,
+    code: result.upstream?.code,
+    desc: result.upstream?.desc,
+  })
+}
+```
+
+`code` and `desc` are populated when the upstream returns the
+`{ err: { code, desc } }` shape (the common case from `finsys-api`).
+For WAF blocks at the App Gateway, the response body is empty and only
+`status` is set.
 
 ## License
 
