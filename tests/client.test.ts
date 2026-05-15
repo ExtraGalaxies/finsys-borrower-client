@@ -298,6 +298,27 @@ describe('BorrowerApiClient.createConsentEvent', () => {
     expect(result.message).toContain('Consent already recorded for this definition.')
     expect(result.message).toContain('400')
   })
+
+  it('omits status from message when axios error has no response (network failure)', async () => {
+    // Regression: previously rendered "Consent creation failed (undefined): ..."
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('timeout') as any
+    axiosError.isAxiosError = true
+    axiosError.code = 'ECONNABORTED'
+    // no response property — simulates a network timeout / DNS failure
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.createConsentEvent('IHS-1', {
+      consentDefinitionId: 1,
+      consentGiven: true,
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.message).toBe('Consent creation failed: Unknown error')
+    expect(result.message).not.toContain('undefined')
+  })
 })
 
 describe('BorrowerApiClient.submitApplication', () => {
@@ -388,6 +409,23 @@ describe('BorrowerApiClient.submitApplication', () => {
     expect(result.ihsId).toBe('IHS-12345')
     expect(result.upstream).toBeUndefined()
   })
+
+  it('omits status from message when axios error has no response (network failure)', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('timeout') as any
+    axiosError.isAxiosError = true
+    axiosError.code = 'ECONNABORTED'
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.submitApplication({ totalFinancing: 100000 })
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: undefined })
+    expect(result.message).toBe('Submission failed: Unknown error')
+    expect(result.message).not.toContain('undefined')
+  })
 })
 
 describe('BorrowerApiClient.updateApplication', () => {
@@ -458,6 +496,23 @@ describe('BorrowerApiClient.updateApplication', () => {
     expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: 403 })
     expect(result.message).toBe('Update failed (403): Unknown error')
   })
+
+  it('omits status from message when axios error has no response (network failure)', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('timeout') as any
+    axiosError.isAxiosError = true
+    axiosError.code = 'ECONNABORTED'
+    mockedAxios.patch.mockRejectedValueOnce(axiosError)
+
+    const result = await client.updateApplication('IHS-42', {})
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: undefined })
+    expect(result.message).toBe('Update failed: Unknown error')
+    expect(result.message).not.toContain('undefined')
+  })
 })
 
 describe('BorrowerApiClient.getApplicationStatus', () => {
@@ -493,6 +548,8 @@ describe('BorrowerApiClient.getApplicationStatus', () => {
     })
     expect(result.message).toContain('IHS application not found.')
     expect(result.ihsId).toBe('IHS-999')
+    // SYS-2437 follow-up: data field is now populated on failure for symmetry with the other methods
+    expect(result.data).toEqual({ err: { code: 'IHS_NOT_FOUND', desc: 'IHS application not found.' } })
   })
 
   it('falls back to legacy { error } body shape with status populated', async () => {
@@ -525,6 +582,23 @@ describe('BorrowerApiClient.getApplicationStatus', () => {
     expect(result.success).toBe(false)
     expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: 403 })
     expect(result.message).toBe('Status check failed (403): Unknown error')
+  })
+
+  it('omits status from message when axios error has no response (network failure)', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('timeout') as any
+    axiosError.isAxiosError = true
+    axiosError.code = 'ECONNABORTED'
+    mockedAxios.get.mockRejectedValueOnce(axiosError)
+
+    const result = await client.getApplicationStatus('IHS-1')
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: undefined })
+    expect(result.message).toBe('Status check failed: Unknown error')
+    expect(result.message).not.toContain('undefined')
   })
 })
 
@@ -561,6 +635,8 @@ describe('BorrowerApiClient.uploadFile', () => {
     })
     expect(result.message).toContain('File exceeds size limit.')
     expect(result.message).toMatch(/\(400\)/)
+    // SYS-2437 follow-up: data field is now populated on failure for symmetry with the other methods
+    expect(result.data).toEqual({ err: { code: 'FILE_TOO_LARGE', desc: 'File exceeds size limit.' } })
   })
 
   it('falls back to legacy { message } body shape with status populated', async () => {
@@ -600,5 +676,22 @@ describe('BorrowerApiClient.uploadFile', () => {
     // STATUS_IN_MESSAGE regex never matched, causing 403 WAF blocks on upload
     // to misclassify as 'unknown' instead of 'blocked'.
     expect(result.message).toBe('File upload failed (403): Unknown error')
+  })
+
+  it('omits status from message when axios error has no response (network failure)', async () => {
+    const client = makeClient()
+    mockLogin()
+
+    const axiosError = new Error('timeout') as any
+    axiosError.isAxiosError = true
+    axiosError.code = 'ECONNABORTED'
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.uploadFile(Buffer.from('test'), 'doc.pdf')
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: undefined })
+    expect(result.message).toBe('File upload failed: Unknown error')
+    expect(result.message).not.toContain('undefined')
   })
 })

@@ -187,9 +187,11 @@ export class BorrowerApiClient {
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const { upstream, apiMessage } = BorrowerApiClient.extractUpstream(error)
+        const statusPart = upstream.status !== undefined ? ` (${upstream.status})` : ''
         return {
           success: false,
-          message: `File upload failed (${upstream.status}): ${apiMessage}`,
+          message: `File upload failed${statusPart}: ${apiMessage}`,
+          data: error.response?.data,
           upstream,
         }
       }
@@ -236,9 +238,10 @@ export class BorrowerApiClient {
         }
 
         const { upstream, apiMessage } = BorrowerApiClient.extractUpstream(error)
+        const statusPart = upstream.status !== undefined ? ` (${upstream.status})` : ''
         return {
           success: false,
-          message: `Submission failed (${upstream.status}): ${apiMessage}`,
+          message: `Submission failed${statusPart}: ${apiMessage}`,
           errors: (error.response?.data as { errors?: Record<string, string[]> } | undefined)?.errors,
           data: error.response?.data,
           upstream,
@@ -317,10 +320,12 @@ export class BorrowerApiClient {
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const { upstream, apiMessage } = BorrowerApiClient.extractUpstream(error)
+        const statusPart = upstream.status !== undefined ? ` (${upstream.status})` : ''
         return {
           success: false,
           ihsId,
-          message: `Status check failed (${upstream.status}): ${apiMessage}`,
+          message: `Status check failed${statusPart}: ${apiMessage}`,
+          data: error.response?.data,
           upstream,
         }
       }
@@ -363,9 +368,10 @@ export class BorrowerApiClient {
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const { upstream, apiMessage } = BorrowerApiClient.extractUpstream(error)
+        const statusPart = upstream.status !== undefined ? ` (${upstream.status})` : ''
         return {
           success: false,
-          message: `Update failed (${upstream.status}): ${apiMessage}`,
+          message: `Update failed${statusPart}: ${apiMessage}`,
           data: error.response?.data,
           upstream,
         }
@@ -408,9 +414,10 @@ export class BorrowerApiClient {
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const { upstream, apiMessage } = BorrowerApiClient.extractUpstream(error)
+        const statusPart = upstream.status !== undefined ? ` (${upstream.status})` : ''
         return {
           success: false,
-          message: `Consent creation failed (${upstream.status}): ${apiMessage}`,
+          message: `Consent creation failed${statusPart}: ${apiMessage}`,
         }
       }
       return {
