@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { buildSubmissionPayloads } from '../src/types.js'
 
+const b64 = (url: string) => btoa(url)
+
 // Mock uploaded file URLs (as returned by FinSys uploadFile API)
 const MOCK_URLS = {
   bank_t1: 'https://finherodms.blob.core.windows.net/dms-general-storage/237ee0a0578cf2d01dd7787717c65e4e24c344a014030b4de0057a06ea6e5ba6',
@@ -48,14 +50,14 @@ describe('buildSubmissionPayloads', () => {
       totalFinancing: 329000,
       mobilePhoneNo: '0123456789',
       bankStatements: [
-        { path: MOCK_URLS.bank_t1, month: 1, year: 2026 },
-        { path: MOCK_URLS.bank_t2, month: 2, year: 2026 },
-        { path: MOCK_URLS.bank_t3, month: 3, year: 2026 },
+        { path: b64(MOCK_URLS.bank_t1), month: 1, year: 2026 },
+        { path: b64(MOCK_URLS.bank_t2), month: 2, year: 2026 },
+        { path: b64(MOCK_URLS.bank_t3), month: 3, year: 2026 },
       ],
       financialStatements: [
-        { path: MOCK_URLS.financials, year: 1 },
+        { path: b64(MOCK_URLS.financials), year: 1 },
       ],
-      form9: MOCK_URLS.form9,
+      form9: b64(MOCK_URLS.form9),
     })
 
     expect(finalizePayload).not.toHaveProperty('fullName')
@@ -104,9 +106,9 @@ describe('buildSubmissionPayloads', () => {
     )
 
     expect(finalizePayload.bankStatements).toEqual([
-      { path: MOCK_URLS.bank_t1, month: 1, year: 2026 },
+      { path: b64(MOCK_URLS.bank_t1), month: 1, year: 2026 },
     ])
-    expect(finalizePayload.form9).toBe(MOCK_URLS.form9)
+    expect(finalizePayload.form9).toBe(b64(MOCK_URLS.form9))
   })
 
   it('skips file fields with no uploaded value', () => {
@@ -127,10 +129,10 @@ describe('buildSubmissionPayloads', () => {
     expect(createPayload).toEqual({ totalFinancing: 100000 })
 
     expect(finalizePayload.bankStatements).toEqual([
-      { path: MOCK_URLS.bank_t1, month: 1, year: 2026 },
+      { path: b64(MOCK_URLS.bank_t1), month: 1, year: 2026 },
     ])
     expect(finalizePayload.financialStatements).toEqual([
-      { path: MOCK_URLS.financials, year: 1 },
+      { path: b64(MOCK_URLS.financials), year: 1 },
     ])
     expect(finalizePayload).not.toHaveProperty('form9')
   })
@@ -148,12 +150,12 @@ describe('buildSubmissionPayloads', () => {
     )
 
     expect(finalizePayload.bankStatements).toEqual([
-      { path: 'https://blob.example.com/bank-1', month: 1, year: 2026 },
-      { path: 'https://blob.example.com/bank-2', month: 2, year: 2026 },
-      { path: 'https://blob.example.com/bank-3', month: 3, year: 2026 },
-      { path: 'https://blob.example.com/bank-4', month: 4, year: 2026 },
-      { path: 'https://blob.example.com/bank-5', month: 5, year: 2026 },
-      { path: 'https://blob.example.com/bank-6', month: 6, year: 2026 },
+      { path: b64('https://blob.example.com/bank-1'), month: 1, year: 2026 },
+      { path: b64('https://blob.example.com/bank-2'), month: 2, year: 2026 },
+      { path: b64('https://blob.example.com/bank-3'), month: 3, year: 2026 },
+      { path: b64('https://blob.example.com/bank-4'), month: 4, year: 2026 },
+      { path: b64('https://blob.example.com/bank-5'), month: 5, year: 2026 },
+      { path: b64('https://blob.example.com/bank-6'), month: 6, year: 2026 },
     ])
   })
 
@@ -166,8 +168,8 @@ describe('buildSubmissionPayloads', () => {
     const { finalizePayload } = buildSubmissionPayloads({}, fileFields)
 
     expect(finalizePayload.financialStatements).toEqual([
-      { path: 'https://blob.example.com/fin-t1', year: 1 },
-      { path: 'https://blob.example.com/fin-t2', year: 2 },
+      { path: b64('https://blob.example.com/fin-t1'), year: 1 },
+      { path: b64('https://blob.example.com/fin-t2'), year: 2 },
     ])
   })
 
@@ -186,9 +188,9 @@ describe('buildSubmissionPayloads', () => {
     expect(createPayload).toEqual({ totalFinancing: 75000 })
 
     expect(finalizePayload.supplementaryDoc).toEqual([
-      { path: 'https://blob.example.com/company-profile.pdf' },
-      { path: 'https://blob.example.com/nric.pdf' },
-      { path: 'https://blob.example.com/sku.json' },
+      { path: b64('https://blob.example.com/company-profile.pdf') },
+      { path: b64('https://blob.example.com/nric.pdf') },
+      { path: b64('https://blob.example.com/sku.json') },
     ])
   })
 
@@ -206,12 +208,12 @@ describe('buildSubmissionPayloads', () => {
 
     // Mapped field works normally
     expect(finalizePayload.bankStatements).toEqual([
-      { path: MOCK_URLS.bank_t1, month: 1, year: 2026 },
+      { path: b64(MOCK_URLS.bank_t1), month: 1, year: 2026 },
     ])
 
     // Unmapped file field routed to supplementaryDoc
     expect(finalizePayload.supplementaryDoc).toEqual([
-      { path: 'https://blob.example.com/custom.pdf' },
+      { path: b64('https://blob.example.com/custom.pdf') },
     ])
   })
 
@@ -291,7 +293,7 @@ describe('buildSubmissionPayloads', () => {
       ssm: [{ url: 'https://blob.example.com/ssm-biz.pdf', name: 'ssm-biz.pdf' }],
     }
     const { finalizePayload } = buildSubmissionPayloads({ totalFinancing: 100000 }, fileFields)
-    expect(finalizePayload.ssm).toBe('https://blob.example.com/ssm-biz.pdf')
+    expect(finalizePayload.ssm).toBe(b64('https://blob.example.com/ssm-biz.pdf'))
   })
 
   it('maps form9 to form9 (url_string format)', () => {
@@ -299,7 +301,7 @@ describe('buildSubmissionPayloads', () => {
       form9: [{ url: 'https://blob.example.com/form9.pdf', name: 'form9.pdf' }],
     }
     const { finalizePayload } = buildSubmissionPayloads({ totalFinancing: 100000 }, fileFields)
-    expect(finalizePayload.form9).toBe('https://blob.example.com/form9.pdf')
+    expect(finalizePayload.form9).toBe(b64('https://blob.example.com/form9.pdf'))
   })
 
   it('handles both ssm and form9 in the same payload', () => {
@@ -308,8 +310,8 @@ describe('buildSubmissionPayloads', () => {
       form9: [{ url: 'https://blob.example.com/form9.pdf', name: 'form9.pdf' }],
     }
     const { finalizePayload } = buildSubmissionPayloads({ totalFinancing: 100000 }, fileFields)
-    expect(finalizePayload.ssm).toBe('https://blob.example.com/ssm-biz.pdf')
-    expect(finalizePayload.form9).toBe('https://blob.example.com/form9.pdf')
+    expect(finalizePayload.ssm).toBe(b64('https://blob.example.com/ssm-biz.pdf'))
+    expect(finalizePayload.form9).toBe(b64('https://blob.example.com/form9.pdf'))
   })
 
   it('maps ic to ic (url_string format)', () => {
@@ -317,7 +319,7 @@ describe('buildSubmissionPayloads', () => {
       ic: [{ url: 'https://blob.example.com/ic-front.pdf', name: 'ic-front.pdf' }],
     }
     const { finalizePayload } = buildSubmissionPayloads({ totalFinancing: 100000 }, fileFields)
-    expect(finalizePayload.ic).toBe('https://blob.example.com/ic-front.pdf')
+    expect(finalizePayload.ic).toBe(b64('https://blob.example.com/ic-front.pdf'))
   })
 
   it('maps epf_statement_tN to epfStatements with month/year', () => {
@@ -327,8 +329,8 @@ describe('buildSubmissionPayloads', () => {
     }
     const { finalizePayload } = buildSubmissionPayloads({}, fileFields, new Date(2026, 0, 1))
     expect(finalizePayload.epfStatements).toEqual([
-      { path: 'https://blob.example.com/epf-1.pdf', month: 1, year: 2026 },
-      { path: 'https://blob.example.com/epf-2.pdf', month: 2, year: 2026 },
+      { path: b64('https://blob.example.com/epf-1.pdf'), month: 1, year: 2026 },
+      { path: b64('https://blob.example.com/epf-2.pdf'), month: 2, year: 2026 },
     ])
   })
 
@@ -342,8 +344,8 @@ describe('buildSubmissionPayloads', () => {
 
     // Both rule-matched supplementaryDoc and unmapped files end up in supplementaryDoc
     expect(finalizePayload.supplementaryDoc).toEqual([
-      { path: 'https://blob.example.com/nric.pdf' },
-      { path: 'https://blob.example.com/extra.pdf' },
+      { path: b64('https://blob.example.com/nric.pdf') },
+      { path: b64('https://blob.example.com/extra.pdf') },
     ])
   })
 })
