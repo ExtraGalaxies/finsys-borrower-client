@@ -306,7 +306,7 @@ export function buildSubmissionPayloads(
 }
 
 function encodeUrl(url: string): string {
-  return Buffer.from(url).toString('base64')
+  return btoa(url)
 }
 
 /**
