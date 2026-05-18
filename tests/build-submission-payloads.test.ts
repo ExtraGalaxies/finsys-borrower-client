@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { buildSubmissionPayloads } from '../src/types.js'
 
-const b64 = (url: string) => Buffer.from(url).toString('base64')
+const b64 = (url: string) => btoa(url)
 
 // Mock uploaded file URLs (as returned by FinSys uploadFile API)
 const MOCK_URLS = {
