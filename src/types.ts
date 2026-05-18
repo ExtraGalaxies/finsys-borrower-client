@@ -265,16 +265,16 @@ export function buildSubmissionPayloads(
   const documents: Record<string, unknown> = {}
   for (const [apiField, { format, entries }] of docGroups) {
     if (format === 'url_string') {
-      documents[apiField] = entries[0].url
+      documents[apiField] = encodeUrl(entries[0].url)
     } else if (format === 'path_only') {
-      documents[apiField] = entries.map((e) => ({ path: e.url }))
+      documents[apiField] = entries.map((e) => ({ path: encodeUrl(e.url) }))
     } else {
       // path_array: bank statements and financials
       documents[apiField] = entries.map((e, index) => {
         if (e.mapping.tIndex !== undefined) {
-          return { path: e.url, month: e.mapping.tIndex, year: currentYear }
+          return { path: encodeUrl(e.url), month: e.mapping.tIndex, year: currentYear }
         }
-        return { path: e.url, year: index + 1 }
+        return { path: encodeUrl(e.url), year: index + 1 }
       })
     }
   }
@@ -284,7 +284,7 @@ export function buildSubmissionPayloads(
     const existing = documents.supplementaryDoc as { path: string }[] | undefined
     const suppDocs = existing ? [...existing] : []
     for (const { url } of unmappedFileFields) {
-      suppDocs.push({ path: url })
+      suppDocs.push({ path: encodeUrl(url) })
     }
     documents.supplementaryDoc = suppDocs
   }
@@ -303,6 +303,10 @@ export function buildSubmissionPayloads(
   Object.assign(finalizePayload, documents)
 
   return { createPayload, finalizePayload }
+}
+
+function encodeUrl(url: string): string {
+  return Buffer.from(url).toString('base64')
 }
 
 /**
