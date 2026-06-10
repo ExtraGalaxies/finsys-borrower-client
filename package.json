@@ -35,7 +35,8 @@
     "url": "https://github.com/ExtraGalaxies/finsys-borrower-client.git"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=24",
+    "npm": ">=11.10.0"
   },
   "dependencies": {
     "axios": "^1.13.0",
@@ -46,10 +47,16 @@
   },
   "devDependencies": {
     "@finsys/core": "^2.0.0",
+    "@lavamoat/allow-scripts": "^5.0.2",
     "@types/node": "^25.3.2",
     "tsup": "^8.4.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   },
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "lavamoat": {
+    "allowScripts": {
+      "tsup>esbuild#0.27.7": false
+    }
+  }
 }
