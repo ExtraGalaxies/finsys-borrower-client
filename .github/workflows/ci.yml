@@ -6,19 +6,7 @@ on:
     branches: [main]
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [20, 22, 24]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-      # Replace file: dev dependency with npm version for CI
-      - run: npm pkg set "devDependencies.@finsys/core=^2.0.0"
-      - run: rm package-lock.json
-      - run: npm install
-      - run: npm run build
-      - run: npm test
+  ci:
+    uses: ExtraGalaxies/finsys-core/.github/workflows/npm-package-ci.yml@55120a74b073419c03c4427b7d7098bbfaec2442
+    with:
+      node-versions: '[20, 22, 24]'
