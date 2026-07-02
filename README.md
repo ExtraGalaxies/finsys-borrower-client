@@ -71,8 +71,8 @@ Creates a client instance. Environment determines the base URL:
 
 | Environment | Base URL |
 |-------------|----------|
-| `staging` | `https://api.finhero.asia/stage/buyerfuel/v1` |
-| `production` | `https://api.finhero.asia/buyerfuel/v1` |
+| `staging` | `https://finsys-api-stage.finhero.asia` |
+| `production` | `https://finsys-api.finhero.asia` |
 
 Use `endpointOverrides` to override individual endpoint URLs when needed.
 
