@@ -2,6 +2,16 @@
 
 Client library for the FinSys Borrower API — handles authentication, file uploads, and two-step loan application submission.
 
+## Prerequisites
+
+- Node 24.16.0 (see `.nvmrc`)
+- npm ≥ 12.0.1
+
+```bash
+nvm use
+npm install -g npm@12.0.1
+```
+
 ## Install
 
 ```bash
