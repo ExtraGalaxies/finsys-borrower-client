@@ -11,8 +11,17 @@ import type {
   StatusResult,
   ConnectionTestResult,
   ConsentEventResult,
+  AdapterAssertionPushBody,
+  AdapterAssertionSubmitResult,
 } from './types.js'
 import { BorrowerEndpoint } from './types.js'
+
+// SYS-3022: the header name must match finsys-api's SERVICE_ACCOUNT_HEADER
+// constant (src/types/FinhubUserContext.ts) and FinHub's own outbound
+// service-account gateway (finsys_api_gateway.ts). Kept literal here
+// rather than imported from a shared package — finsys-api is a peer, not
+// a dep of this client.
+const SERVICE_ACCOUNT_KEY_HEADER = 'X-Finhub-Service-Key'
 
 export class BorrowerApiClient {
   private config: BorrowerClientConfig
@@ -48,6 +57,25 @@ export class BorrowerApiClient {
       headers['Ocp-Apim-Subscription-Key'] = this.config.credentials.gatewayKey
     }
     return headers
+  }
+
+  /**
+   * Base headers shared by every JSON request against finsys-api,
+   * regardless of auth mode (bearer-token or service-account). Extracted
+   * so the WAF-bypass User-Agent isn't copy-pasted per call site (SYS-3022
+   * review finding): `authenticatedHeaders()` layers `Authorization` +
+   * the FinXtract key on top of this; `submitAdapterAssertion()` layers
+   * the service-account key on top instead.
+   */
+  private baseJsonHeaders(): Record<string, string> {
+    return {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache',
+      // Required to bypass Azure Application Gateway WAF bot protection
+      'User-Agent':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      ...this.gatewayHeaders(),
+    }
   }
 
   /**
@@ -120,12 +148,7 @@ export class BorrowerApiClient {
   private authenticatedHeaders(token: string): Record<string, string> {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-cache',
-      // Required to bypass Azure Application Gateway WAF bot protection
-      'User-Agent':
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      ...this.gatewayHeaders(),
+      ...this.baseJsonHeaders(),
     }
     // SYS-2150: forward per-tenant FinXtract key so finsys-api can attribute OCR billing correctly.
     if (this.config.credentials.finxtractApiKey) {
@@ -423,6 +446,106 @@ export class BorrowerApiClient {
       return {
         success: false,
         message: 'An unexpected error occurred during consent creation',
+      }
+    }
+  }
+
+  /**
+   * SYS-3022 — push an externally-orchestrated adapter assertion:
+   * `POST /adapters/:adapterId/assertions`.
+   *
+   * Used by an external BFF that has already run its own live-consent
+   * ceremony (e.g. a carrier CIBA out-of-band flow) and holds the
+   * resulting canonical signals — it pushes the result here instead of
+   * finsys-api pull-triggering the adapter's own fetch().
+   *
+   * Auth is DELIBERATELY DIFFERENT from every other method on this
+   * client: this endpoint is service-account-authenticated via the
+   * `X-Finhub-Service-Key` header (a static shared secret configured as
+   * `config.credentials.serviceKey`), not the `clientId`/`clientSecret`
+   * borrower-token flow `login()` performs. There is no token to cache or
+   * refresh, so this method does NOT call `withAuth()` — a 401 here means
+   * "the configured service key is wrong or unset", and retrying with the
+   * same key would never succeed.
+   *
+   * Field values in `body` (especially `outcome.fields` and
+   * `consent.authReqId`) are sent verbatim — no numeric coercion, no
+   * trimming. An enum-label string like `"3"` must survive as the string
+   * `"3"`, not become the number `3`.
+   */
+  async submitAdapterAssertion(
+    adapterId: string,
+    body: AdapterAssertionPushBody
+  ): Promise<AdapterAssertionSubmitResult> {
+    if (!adapterId || !BorrowerApiClient.SAFE_ID_PATTERN.test(adapterId)) {
+      return { success: false, message: 'Invalid adapterId format' }
+    }
+    if (!this.config.credentials.serviceKey) {
+      return {
+        success: false,
+        message:
+          'Service key (config.credentials.serviceKey) is required to submit an adapter assertion',
+      }
+    }
+
+    try {
+      const headers: Record<string, string> = {
+        ...this.baseJsonHeaders(),
+        [SERVICE_ACCOUNT_KEY_HEADER]: this.config.credentials.serviceKey,
+      }
+
+      const response = await axios.post(
+        this.resolveUrl(BorrowerEndpoint.SUBMIT_ADAPTER_ASSERTION, `${adapterId}/assertions`),
+        body,
+        {
+          headers,
+          timeout: 30_000,
+        }
+      )
+
+      // SYS-3022 review finding (SYS-2946 hardening class): don't declare
+      // success on a 201 whose envelope is missing or malformed. Validate
+      // the two fields every caller depends on for correctness —
+      // consentEventId (used to correlate the consent record) and
+      // signalCount (used to confirm how much data landed). adapterRunId
+      // is legitimately `number | null` for a skip outcome — it is passed
+      // through as-is, never used as a success gate.
+      const responseData = response.data?.data as
+        | { consentEventId?: unknown; adapterRunId?: unknown; signalCount?: unknown }
+        | undefined
+      if (
+        typeof responseData?.consentEventId !== 'number' ||
+        typeof responseData?.signalCount !== 'number'
+      ) {
+        return {
+          success: false,
+          message:
+            'Adapter assertion response was malformed: missing consentEventId or signalCount',
+        }
+      }
+
+      return {
+        success: true,
+        data: {
+          consentEventId: responseData.consentEventId,
+          adapterRunId: responseData.adapterRunId as number | null,
+          signalCount: responseData.signalCount,
+        },
+        message: 'Adapter assertion submitted successfully',
+      }
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const { upstream, apiMessage } = BorrowerApiClient.extractUpstream(error)
+        const statusPart = upstream.status !== undefined ? ` (${upstream.status})` : ''
+        return {
+          success: false,
+          message: `Adapter assertion submission failed${statusPart}: ${apiMessage}`,
+          upstream,
+        }
+      }
+      return {
+        success: false,
+        message: 'An unexpected error occurred during adapter assertion submission',
       }
     }
   }
