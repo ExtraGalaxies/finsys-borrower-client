@@ -186,6 +186,19 @@ export enum AdapterAssertionSkipReason {
  * Mirrors finsys-api's `AssertionPushConsentEvidence`.
  */
 export interface AdapterAssertionConsentEvidence {
+  /**
+   * SYS-3040 — REQUIRED. The consent-definition engine's (SYS-2215) id
+   * this ceremony's evidence is recorded against. Must be registered to
+   * the target application's program (finsys-api rejects with
+   * `CONSENT_DEF_NOT_REGISTERED_FOR_PROGRAM` otherwise), and that
+   * definition must have a current version whose text equals
+   * `bindingMessage` exactly (`CONSENT_TEXT_MISMATCH` otherwise) — see
+   * `submitAdapterAssertion()`'s doc comment on client.ts for the full
+   * error-mapping story. Before SYS-3040 this wasn't part of the payload
+   * at all; every push recorded consent under a single hardcoded
+   * definition regardless of adapter or program.
+   */
+  consentDefinitionId: number
   method: AdapterAssertionConsentMethod
   /** Exact binding-message text presented to the subscriber during the ceremony. */
   bindingMessage: string
