@@ -35,6 +35,7 @@ function baseSignalsBody(overrides?: Partial<AdapterAssertionPushBody>): Adapter
     asOfDate: '2026-07-20T00:00:00.000Z',
     assertingService: 'external-bff',
     consent: {
+      consentDefinitionId: 9001,
       method: AdapterAssertionConsentMethod.CIBA_CARRIER_OOB,
       bindingMessage: 'Confirm access for Acme Lending?',
       authReqId: 'auth-req-xyz',
@@ -414,6 +415,7 @@ describe('BorrowerApiClient.submitAdapterAssertion', () => {
 
     const body = baseSignalsBody({
       consent: {
+        consentDefinitionId: 9001,
         method: AdapterAssertionConsentMethod.CIBA_CARRIER_OOB,
         bindingMessage: 'Confirm 012345 access?',
         authReqId: '00998877',
@@ -428,6 +430,61 @@ describe('BorrowerApiClient.submitAdapterAssertion', () => {
     expect(consent.bindingMessage).toBe('Confirm 012345 access?')
   })
 
+  // ── consentDefinitionId (SYS-3040) ───────────────────────────────
+
+  it('passes consent.consentDefinitionId through verbatim as a number', async () => {
+    const client = makeClient()
+    mockedAxios.post.mockResolvedValueOnce({
+      data: { data: { consentEventId: 1, adapterRunId: 1, signalCount: 1 } },
+    } as any)
+
+    const body = baseSignalsBody({
+      consent: {
+        consentDefinitionId: 4242,
+        method: AdapterAssertionConsentMethod.CIBA_CARRIER_OOB,
+        bindingMessage: 'Confirm access for Acme Lending?',
+        authReqId: 'auth-req-xyz',
+        assertedAt: '2026-07-20T00:05:00.000Z',
+      },
+    })
+    await client.submitAdapterAssertion('carrier-phone', body)
+
+    const [, sentBody] = mockedAxios.post.mock.calls[0]
+    const consent = (sentBody as AdapterAssertionPushBody).consent
+    expect(consent.consentDefinitionId).toBe(4242)
+    expect(typeof consent.consentDefinitionId).toBe('number')
+  })
+
+  it('does not coerce a numeric-string consentDefinitionId (type-enforced at compile time, but the client performs no runtime coercion or validation of its own)', async () => {
+    // consentDefinitionId is typed `number` — a legitimate caller can never
+    // pass a string past the compiler. This guards the RUNTIME behavior:
+    // the client is a pure pass-through and must never parse/stringify this
+    // field itself, so a caller who bypasses the type (a JS consumer, or a
+    // deliberate `as any`) still gets sent exactly what they provided,
+    // whatever shape that is — never silently coerced to a different type
+    // on the way to the wire.
+    const client = makeClient()
+    mockedAxios.post.mockResolvedValueOnce({
+      data: { data: { consentEventId: 1, adapterRunId: 1, signalCount: 1 } },
+    } as any)
+
+    const body = baseSignalsBody({
+      consent: {
+        consentDefinitionId: '9001' as unknown as number,
+        method: AdapterAssertionConsentMethod.CIBA_CARRIER_OOB,
+        bindingMessage: 'Confirm access for Acme Lending?',
+        authReqId: 'auth-req-xyz',
+        assertedAt: '2026-07-20T00:05:00.000Z',
+      },
+    })
+    await client.submitAdapterAssertion('carrier-phone', body)
+
+    const [, sentBody] = mockedAxios.post.mock.calls[0]
+    const consent = (sentBody as AdapterAssertionPushBody).consent
+    expect(consent.consentDefinitionId).toBe('9001')
+    expect(typeof consent.consentDefinitionId).toBe('string')
+  })
+
   it('submits a signals outcome asserted via an in-session platform grant (PLATFORM_SESSION)', async () => {
     const client = makeClient()
     mockedAxios.post.mockResolvedValueOnce({
@@ -436,6 +493,7 @@ describe('BorrowerApiClient.submitAdapterAssertion', () => {
 
     const body = baseSignalsBody({
       consent: {
+        consentDefinitionId: 9001,
         method: AdapterAssertionConsentMethod.PLATFORM_SESSION,
         bindingMessage: 'Share your accounting data with FinHero?',
         authReqId: 'platform-grant-abc',
@@ -449,6 +507,7 @@ describe('BorrowerApiClient.submitAdapterAssertion', () => {
 
     const [, sentBody] = mockedAxios.post.mock.calls[0]
     expect((sentBody as AdapterAssertionPushBody).consent).toEqual({
+      consentDefinitionId: 9001,
       method: 'PLATFORM_SESSION',
       bindingMessage: 'Share your accounting data with FinHero?',
       authReqId: 'platform-grant-abc',
@@ -473,6 +532,10 @@ describe('BorrowerApiClient.submitAdapterAssertion', () => {
     [404, 'IHS_NOT_FOUND', 'No IHS application exists with the given id.'],
     [409, 'ADAPTER_NOT_EXTERNAL_MODE', 'The adapter is registered, but not in external-assertion mode. This endpoint only accepts pushes for adapters declared external-assertion.'],
     [409, 'IHS_NOT_IN_CREATING_APPLICATION', 'The IHS application is not in CREATING_APPLICATION status.'],
+    // SYS-3040: consent-definition guards (d2/d3/d4 in adapterAssertionPushService.ts).
+    [403, 'CONSENT_DEF_NOT_REGISTERED_FOR_PROGRAM', "The referenced consentDefinitionId is not registered to the application's program."],
+    [422, 'CONSENT_DEFINITION_NO_CURRENT_VERSION', 'The referenced consent definition has no current version to bind this consent event to.'],
+    [422, 'CONSENT_TEXT_MISMATCH', "The asserted bindingMessage does not match the current version's text for this consent definition."],
     [422, 'FIELD_OUT_OF_CONTRACT', "One or more submitted fields are not in the adapter's declared produces list."],
     [422, 'ENUM_LABEL_OUT_OF_SET', "One or more enum-kind fields carry a label outside the adapter's declared enumValues set."],
     [500, 'INTERNAL_ERROR', 'An unexpected error occurred while processing the assertion push.'],
