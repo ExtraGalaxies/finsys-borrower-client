@@ -48,6 +48,22 @@ function baseSignalsBody(overrides?: Partial<AdapterAssertionPushBody>): Adapter
   }
 }
 
+describe('AdapterAssertionConsentMethod / AdapterAssertionSkipReason — literal string pin', () => {
+  // These values are the wire contract with finsys-api verbatim (see the
+  // "mirrors finsys-api's ... enum verbatim" doc comments in types.ts) —
+  // pinned as literal strings so a future refactor (e.g. renumbering,
+  // renaming) can't silently drift the value sent over the wire.
+  it('pins each AdapterAssertionConsentMethod member to its exact wire string', () => {
+    expect(AdapterAssertionConsentMethod.CIBA_CARRIER_OOB).toBe('CIBA_CARRIER_OOB')
+    expect(AdapterAssertionConsentMethod.PLATFORM_SESSION).toBe('PLATFORM_SESSION')
+  })
+
+  it('pins each AdapterAssertionSkipReason member to its exact wire string', () => {
+    expect(AdapterAssertionSkipReason.IDENTITY_MISMATCH).toBe('IDENTITY_MISMATCH')
+    expect(AdapterAssertionSkipReason.DATA_NULL).toBe('DATA_NULL')
+  })
+})
+
 describe('BorrowerApiClient.submitAdapterAssertion', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -410,6 +426,34 @@ describe('BorrowerApiClient.submitAdapterAssertion', () => {
     const consent = (sentBody as AdapterAssertionPushBody).consent
     expect(consent.authReqId).toBe('00998877')
     expect(consent.bindingMessage).toBe('Confirm 012345 access?')
+  })
+
+  it('submits a signals outcome asserted via an in-session platform grant (PLATFORM_SESSION)', async () => {
+    const client = makeClient()
+    mockedAxios.post.mockResolvedValueOnce({
+      data: { data: { consentEventId: 12, adapterRunId: 60, signalCount: 1 } },
+    } as any)
+
+    const body = baseSignalsBody({
+      consent: {
+        method: AdapterAssertionConsentMethod.PLATFORM_SESSION,
+        bindingMessage: 'Share your accounting data with FinHero?',
+        authReqId: 'platform-grant-abc',
+        assertedAt: '2026-07-20T00:05:00.000Z',
+      },
+    })
+    const result = await client.submitAdapterAssertion('carrier-phone', body)
+
+    expect(result.success).toBe(true)
+    expect(result.data).toEqual({ consentEventId: 12, adapterRunId: 60, signalCount: 1 })
+
+    const [, sentBody] = mockedAxios.post.mock.calls[0]
+    expect((sentBody as AdapterAssertionPushBody).consent).toEqual({
+      method: 'PLATFORM_SESSION',
+      bindingMessage: 'Share your accounting data with FinHero?',
+      authReqId: 'platform-grant-abc',
+      assertedAt: '2026-07-20T00:05:00.000Z',
+    })
   })
 
   // ── Error mapping: each documented error code ───────────────────

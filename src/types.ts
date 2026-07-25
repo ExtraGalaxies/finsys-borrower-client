@@ -140,18 +140,31 @@ export interface ConnectionTestResult {
 /**
  * How the consent ceremony was carried out. Mirrors finsys-api's
  * `ConsentMethod` enum (domain/constants/consentMethod.ts) verbatim.
- * `CIBA_CARRIER_OOB` is the only method today: a CIBA (Client-Initiated
- * Backchannel Authentication) out-of-band ceremony conducted by the
- * carrier on the vendor's own channel, with the result asserted to
- * finsys-api by the externally-orchestrating service — finsys-api never
- * sees the ceremony itself, only its evidence.
+ * finsys-api never sees the ceremony itself, only its evidence, asserted
+ * by the externally-orchestrating service.
  *
  * Repo convention: enums, never string unions, even for a set that will
  * grow — a new ceremony method is a contract change on both sides, not a
  * silently-accepted new string.
  */
 export enum AdapterAssertionConsentMethod {
+  /**
+   * A CIBA (Client-Initiated Backchannel Authentication) out-of-band
+   * ceremony conducted by the carrier on the vendor's own channel, with
+   * the result asserted to finsys-api by the externally-orchestrating
+   * service.
+   */
   CIBA_CARRIER_OOB = 'CIBA_CARRIER_OOB',
+  /**
+   * Consent granted by the authenticated subject within the asserting
+   * platform's own session — the asserting platform is itself an
+   * authenticated data source (e.g. an accounting-software portal) and
+   * vouches that a logged-in user approved the specific purpose text,
+   * rather than a separate out-of-band ceremony. `bindingMessage` carries
+   * the exact consent text displayed; `authReqId` carries the platform's
+   * session/grant correlation id (opaque) — same no-raw-tokens rule.
+   */
+  PLATFORM_SESSION = 'PLATFORM_SESSION',
 }
 
 /**
