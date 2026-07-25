@@ -60,6 +60,25 @@ export class BorrowerApiClient {
   }
 
   /**
+   * Base headers shared by every JSON request against finsys-api,
+   * regardless of auth mode (bearer-token or service-account). Extracted
+   * so the WAF-bypass User-Agent isn't copy-pasted per call site (SYS-3022
+   * review finding): `authenticatedHeaders()` layers `Authorization` +
+   * the FinXtract key on top of this; `submitAdapterAssertion()` layers
+   * the service-account key on top instead.
+   */
+  private baseJsonHeaders(): Record<string, string> {
+    return {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache',
+      // Required to bypass Azure Application Gateway WAF bot protection
+      'User-Agent':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      ...this.gatewayHeaders(),
+    }
+  }
+
+  /**
    * Invalidate the cached auth token.
    */
   invalidateToken(): void {
@@ -129,12 +148,7 @@ export class BorrowerApiClient {
   private authenticatedHeaders(token: string): Record<string, string> {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-cache',
-      // Required to bypass Azure Application Gateway WAF bot protection
-      'User-Agent':
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      ...this.gatewayHeaders(),
+      ...this.baseJsonHeaders(),
     }
     // SYS-2150: forward per-tenant FinXtract key so finsys-api can attribute OCR billing correctly.
     if (this.config.credentials.finxtractApiKey) {
@@ -476,10 +490,8 @@ export class BorrowerApiClient {
 
     try {
       const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache',
+        ...this.baseJsonHeaders(),
         [SERVICE_ACCOUNT_KEY_HEADER]: this.config.credentials.serviceKey,
-        ...this.gatewayHeaders(),
       }
 
       const response = await axios.post(
@@ -491,9 +503,34 @@ export class BorrowerApiClient {
         }
       )
 
+      // SYS-3022 review finding (SYS-2946 hardening class): don't declare
+      // success on a 201 whose envelope is missing or malformed. Validate
+      // the two fields every caller depends on for correctness —
+      // consentEventId (used to correlate the consent record) and
+      // signalCount (used to confirm how much data landed). adapterRunId
+      // is legitimately `number | null` for a skip outcome — it is passed
+      // through as-is, never used as a success gate.
+      const responseData = response.data?.data as
+        | { consentEventId?: unknown; adapterRunId?: unknown; signalCount?: unknown }
+        | undefined
+      if (
+        typeof responseData?.consentEventId !== 'number' ||
+        typeof responseData?.signalCount !== 'number'
+      ) {
+        return {
+          success: false,
+          message:
+            'Adapter assertion response was malformed: missing consentEventId or signalCount',
+        }
+      }
+
       return {
         success: true,
-        data: response.data?.data,
+        data: {
+          consentEventId: responseData.consentEventId,
+          adapterRunId: responseData.adapterRunId as number | null,
+          signalCount: responseData.signalCount,
+        },
         message: 'Adapter assertion submitted successfully',
       }
     } catch (error) {

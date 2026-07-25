@@ -123,6 +123,22 @@ describe('BorrowerApiClient.submitAdapterAssertion', () => {
     expect(headers['Ocp-Apim-Subscription-Key']).toBe('test-gateway-key')
   })
 
+  it('sends the WAF-bypass User-Agent header (shared with authenticatedHeaders())', async () => {
+    // Azure Application Gateway's WAF rejects bot-shaped traffic without a
+    // browser User-Agent — see the identical comment on authenticatedHeaders().
+    // This must not regress to copy-paste drift between the two header builders.
+    const client = makeClient()
+    mockedAxios.post.mockResolvedValueOnce({
+      data: { data: { consentEventId: 1, adapterRunId: 10, signalCount: 1 } },
+    } as any)
+
+    await client.submitAdapterAssertion('carrier-phone', baseSignalsBody())
+
+    const [, , requestConfig] = mockedAxios.post.mock.calls[0]
+    const headers = requestConfig?.headers as Record<string, string>
+    expect(headers['User-Agent']).toMatch(/Mozilla\/5\.0/)
+  })
+
   it('posts to the correct URL: /adapters/:adapterId/assertions', async () => {
     const client = makeClient()
     mockedAxios.post.mockResolvedValueOnce({
@@ -163,6 +179,61 @@ describe('BorrowerApiClient.submitAdapterAssertion', () => {
 
     expect(result.success).toBe(true)
     expect(result.data).toEqual({ consentEventId: 7, adapterRunId: 55, signalCount: 1 })
+  })
+
+  // ── Malformed 201 envelope: don't declare success on a bad body ──
+
+  it('returns success:false on a 201 with no data envelope at all', async () => {
+    const client = makeClient()
+    mockedAxios.post.mockResolvedValueOnce({ data: {} } as any)
+
+    const result = await client.submitAdapterAssertion('carrier-phone', baseSignalsBody())
+
+    expect(result.success).toBe(false)
+    expect(result.message).toBe(
+      'Adapter assertion response was malformed: missing consentEventId or signalCount'
+    )
+    expect(result.data).toBeUndefined()
+  })
+
+  it('returns success:false on a 201 missing consentEventId', async () => {
+    const client = makeClient()
+    mockedAxios.post.mockResolvedValueOnce({
+      data: { data: { adapterRunId: 10, signalCount: 1 } },
+    } as any)
+
+    const result = await client.submitAdapterAssertion('carrier-phone', baseSignalsBody())
+
+    expect(result.success).toBe(false)
+    expect(result.message).toBe(
+      'Adapter assertion response was malformed: missing consentEventId or signalCount'
+    )
+  })
+
+  it('returns success:false on a 201 missing signalCount', async () => {
+    const client = makeClient()
+    mockedAxios.post.mockResolvedValueOnce({
+      data: { data: { consentEventId: 7, adapterRunId: 10 } },
+    } as any)
+
+    const result = await client.submitAdapterAssertion('carrier-phone', baseSignalsBody())
+
+    expect(result.success).toBe(false)
+    expect(result.message).toBe(
+      'Adapter assertion response was malformed: missing consentEventId or signalCount'
+    )
+  })
+
+  it('accepts a null adapterRunId (skip outcome shape) without treating it as malformed', async () => {
+    const client = makeClient()
+    mockedAxios.post.mockResolvedValueOnce({
+      data: { data: { consentEventId: 8, adapterRunId: null, signalCount: 0 } },
+    } as any)
+
+    const result = await client.submitAdapterAssertion('carrier-phone', baseSignalsBody())
+
+    expect(result.success).toBe(true)
+    expect(result.data).toEqual({ consentEventId: 8, adapterRunId: null, signalCount: 0 })
   })
 
   it('sends the request body verbatim (no transformation)', async () => {
@@ -275,6 +346,30 @@ describe('BorrowerApiClient.submitAdapterAssertion', () => {
     expect(typeof fields.fields.accountRefLeadingZeros).toBe('string')
   })
 
+  it('survives a JSON round-trip (JSON.parse(JSON.stringify(body))) with enum-label strings intact', async () => {
+    // Guards against a transport-layer serializer (e.g. a proxy that
+    // JSON.parse/stringify's the payload en route) silently upgrading a
+    // numeric-looking string to a JSON number, which axios's own request
+    // serialization does NOT do but a naive re-serialization could.
+    const body = baseSignalsBody({
+      outcome: {
+        kind: 'signals',
+        fields: {
+          carrierTierCode: '3',
+          accountRefLeadingZeros: '012345',
+        },
+      },
+    })
+
+    const roundTripped = JSON.parse(JSON.stringify(body)) as AdapterAssertionPushBody
+    const fields = (roundTripped.outcome as { fields: Record<string, unknown> }).fields
+
+    expect(fields.carrierTierCode).toBe('3')
+    expect(typeof fields.carrierTierCode).toBe('string')
+    expect(fields.accountRefLeadingZeros).toBe('012345')
+    expect(typeof fields.accountRefLeadingZeros).toBe('string')
+  })
+
   it('preserves boolean and null field values verbatim', async () => {
     const client = makeClient()
     mockedAxios.post.mockResolvedValueOnce({
@@ -349,6 +444,50 @@ describe('BorrowerApiClient.submitAdapterAssertion', () => {
     expect(result.message).toContain(String(status))
   })
 
+  // Real 401 vocabulary from finsys-api's serviceAccountAuth middleware
+  // (customMiddlewares/serviceAccountAuth.ts) — these are the codes a live
+  // caller with a wrong or unconfigured service key actually receives.
+  // Unlike ADAPTER_ASSERTION_ERRORS' codes, the middleware's error bodies
+  // carry NO `desc` field at all (`{ err: { code } }` only) — the client
+  // must fall back to the code itself for the message, exactly like any
+  // other legacy/partial upstream error shape.
+  it('maps 401 BAD_SERVICE_KEY (no desc field) to a typed upstream result', async () => {
+    const client = makeClient()
+    const axiosError = new Error('Unauthorized') as any
+    axiosError.isAxiosError = true
+    axiosError.response = { status: 401, data: { err: { code: 'BAD_SERVICE_KEY' } } }
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.submitAdapterAssertion('carrier-phone', baseSignalsBody())
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: 'BAD_SERVICE_KEY', desc: undefined, status: 401 })
+    expect(result.message).toBe('Adapter assertion submission failed (401): BAD_SERVICE_KEY')
+  })
+
+  it('maps 401 SERVICE_ACCOUNT_NOT_CONFIGURED (no desc field) to a typed upstream result', async () => {
+    const client = makeClient()
+    const axiosError = new Error('Unauthorized') as any
+    axiosError.isAxiosError = true
+    axiosError.response = {
+      status: 401,
+      data: { err: { code: 'SERVICE_ACCOUNT_NOT_CONFIGURED' } },
+    }
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.submitAdapterAssertion('carrier-phone', baseSignalsBody())
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({
+      code: 'SERVICE_ACCOUNT_NOT_CONFIGURED',
+      desc: undefined,
+      status: 401,
+    })
+    expect(result.message).toBe(
+      'Adapter assertion submission failed (401): SERVICE_ACCOUNT_NOT_CONFIGURED'
+    )
+  })
+
   it('does NOT retry on 401 (unlike the bearer-token flow) — a bad service key never self-heals', async () => {
     const client = makeClient()
     mockErrorResponse(401, 'UNAUTHORIZED', 'Service-account authentication is required for this endpoint.')
@@ -371,6 +510,27 @@ describe('BorrowerApiClient.submitAdapterAssertion', () => {
     expect(result.success).toBe(false)
     expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: 403 })
     expect(result.message).toBe('Adapter assertion submission failed (403): Unknown error')
+  })
+
+  it('handles a true axios network failure (isAxiosError=true, no response at all)', async () => {
+    // Distinct from the "missing response body" WAF case above (which still
+    // has error.response.status=403) and from the plain-Error case below
+    // (which isn't an axios error at all). This exercises extractUpstream's
+    // no-response branch: error.response is undefined entirely, e.g. a DNS
+    // failure or connection refusal before any HTTP response existed.
+    const client = makeClient()
+    const axiosError = new Error('connect ECONNREFUSED') as any
+    axiosError.isAxiosError = true
+    axiosError.code = 'ECONNREFUSED'
+    // No `response` property set at all.
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+
+    const result = await client.submitAdapterAssertion('carrier-phone', baseSignalsBody())
+
+    expect(result.success).toBe(false)
+    expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: undefined })
+    expect(result.message).toBe('Adapter assertion submission failed: Unknown error')
+    expect(result.message).not.toContain('undefined')
   })
 
   it('returns a generic message on non-axios error (network failure)', async () => {
