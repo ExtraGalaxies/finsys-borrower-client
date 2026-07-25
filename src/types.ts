@@ -1,3 +1,4 @@
+import type { CanonicalFieldValue } from '@finsys/core'
 import {
   resolvePayloadTransfer,
   type FileFieldFormat,
@@ -16,6 +17,8 @@ export enum BorrowerEndpoint {
   UPLOAD_FILE = 'uploadFile',
   STATUS = 'status',
   CREATE_CONSENT = 'createConsent',
+  /** SYS-3022: POST /adapters/:adapterId/assertions — see submitAdapterAssertion(). */
+  SUBMIT_ADAPTER_ASSERTION = 'submitAdapterAssertion',
 }
 
 export interface ConsentEventResult {
@@ -59,6 +62,16 @@ export interface BorrowerClientConfig {
     gatewayKey?: string
     /** SYS-2150: per-tenant FinXtract APIM subscription key for OCR billing attribution. */
     finxtractApiKey?: string
+    /**
+     * SYS-3022: shared service-account key for the adapter assertion-push
+     * endpoint (`submitAdapterAssertion()`). Sent as `X-Finhub-Service-Key`
+     * — a static shared secret, NOT exchanged via `login()` — mirroring
+     * finsys-api's `authorizeServiceAccount` middleware and FinHub's own
+     * outbound service-account gateway (finsys_api_gateway.ts). Distinct
+     * from `clientId`/`clientSecret`, which authenticate the borrower-token
+     * flow used by every other method on this client.
+     */
+    serviceKey?: string
   }
   /** Optional per-endpoint full URL overrides */
   endpointOverrides?: Partial<Record<BorrowerEndpoint, string>>
@@ -110,6 +123,132 @@ export interface StatusResult {
 export interface ConnectionTestResult {
   success: boolean
   message: string
+}
+
+// ─── Adapter Assertion Push (SYS-3022) ───────────────────────────────────
+//
+// Client surface for POST /adapters/:adapterId/assertions — finsys-api's
+// externally-orchestrated, assertion-ingested adapter mode. An external
+// BFF that has already run its own live-consent ceremony (e.g. a carrier
+// CIBA out-of-band flow) and holds the resulting canonical signals pushes
+// the result here, instead of finsys-api pull-triggering the adapter.
+//
+// These types mirror finsys-api's adapterAssertionPushService.ts /
+// consentMethod.ts contract verbatim — field names, shapes, and the enum
+// value sets are NOT invented here; they are the server's contract.
+
+/**
+ * How the consent ceremony was carried out. Mirrors finsys-api's
+ * `ConsentMethod` enum (domain/constants/consentMethod.ts) verbatim.
+ * `CIBA_CARRIER_OOB` is the only method today: a CIBA (Client-Initiated
+ * Backchannel Authentication) out-of-band ceremony conducted by the
+ * carrier on the vendor's own channel, with the result asserted to
+ * finsys-api by the externally-orchestrating service — finsys-api never
+ * sees the ceremony itself, only its evidence.
+ *
+ * Repo convention: enums, never string unions, even for a set that will
+ * grow — a new ceremony method is a contract change on both sides, not a
+ * silently-accepted new string.
+ */
+export enum AdapterAssertionConsentMethod {
+  CIBA_CARRIER_OOB = 'CIBA_CARRIER_OOB',
+}
+
+/**
+ * Why an asserting service submitted a "consent completed, no signals"
+ * outcome instead of canonical field values. Mirrors finsys-api's
+ * `ConsentSkipReason` enum verbatim. Both are legitimate, lender-visible
+ * states — "verification attempted, not matched / no data" — not
+ * failures to be retried silently.
+ */
+export enum AdapterAssertionSkipReason {
+  /** The carrier could not match the ceremony's identity to the applicant. */
+  IDENTITY_MISMATCH = 'IDENTITY_MISMATCH',
+  /** Identity matched but the carrier holds no data to report. */
+  DATA_NULL = 'DATA_NULL',
+}
+
+/**
+ * Evidence of the live-consent ceremony, asserted alongside the outcome.
+ * Mirrors finsys-api's `AssertionPushConsentEvidence`.
+ */
+export interface AdapterAssertionConsentEvidence {
+  method: AdapterAssertionConsentMethod
+  /** Exact binding-message text presented to the subscriber during the ceremony. */
+  bindingMessage: string
+  /** CIBA auth_req_id correlating this event to the carrier's ceremony. */
+  authReqId: string
+  /** ISO-8601 timestamp of ceremony completion. */
+  assertedAt: string
+  /**
+   * Opaque, vendor-specific carrier trace metadata. finsys-api sanitizes
+   * this server-side before persistence (token-shaped keys/values are
+   * dropped) — callers must still never place a transport bearer/ID
+   * token here; sanitization is a backstop, not a license.
+   */
+  carrierTrace?: Record<string, unknown>
+}
+
+/**
+ * The two possible outcomes of a pushed assertion. Mirrors finsys-api's
+ * `AssertionPushOutcome` discriminated union verbatim — `kind` stays a
+ * literal-string tag (matching the server contract exactly), not an enum;
+ * the two closed value sets it touches (consent method, skip reason) are
+ * the enums above.
+ *
+ * REPLACE-SEMANTICS: for a given (ihsId, adapterId, instanceKey), a push
+ * with `kind: 'signals'` is authoritative for the WHOLE field set the
+ * adapter produces, not an incremental patch — finsys-api upserts by
+ * replacing the full row on re-push. Submit every produced field you have
+ * data for, every time, for that instanceKey, or an earlier value is
+ * silently cleared on the next push. See adapterAssertionPushService.ts
+ * for the full server-side rationale.
+ */
+export type AdapterAssertionOutcome =
+  | { kind: 'signals'; fields: Record<string, CanonicalFieldValue> }
+  | { kind: 'skip'; reason: AdapterAssertionSkipReason }
+
+/**
+ * Request body for `submitAdapterAssertion()`. Mirrors finsys-api's
+ * `AssertionPushBody` verbatim.
+ */
+export interface AdapterAssertionPushBody {
+  ihsId: number
+  /** Vendor envelope: correlates this push to the carrier's own trace. */
+  traceId: string
+  /** Vendor envelope: ISO-8601 date the DATA (not the ceremony) is as-of. */
+  asOfDate: string
+  /** Declared identity of the externally-orchestrating service. Provenance only. */
+  assertingService: string
+  /**
+   * Optional; identifies which of possibly several coexisting instances
+   * of this adapter (e.g. two consented phone lines) this push targets.
+   * Omitted defaults server-side to "" (the pull-ingest single-instance
+   * convention), never a client-generated value. Opaque: an id the vendor
+   * assigns, not a value finsys-api gives meaning to.
+   */
+  instanceKey?: string
+  consent: AdapterAssertionConsentEvidence
+  outcome: AdapterAssertionOutcome
+}
+
+/**
+ * Result of `submitAdapterAssertion()`. Follows the same
+ * success/data/message/upstream convention as every other method on this
+ * client (see `UpstreamErrorDetail`) rather than inventing a new error
+ * shape — finsys-api's `{ err: { code, desc } }` response surfaces via
+ * `upstream.code` / `upstream.desc` exactly like every other endpoint.
+ */
+export interface AdapterAssertionSubmitResult {
+  success: boolean
+  data?: {
+    consentEventId: number
+    adapterRunId: number | null
+    signalCount: number
+  }
+  message?: string
+  /** Typed upstream error detail on failure. Undefined on success. */
+  upstream?: UpstreamErrorDetail
 }
 
 /**

@@ -4,6 +4,8 @@ export {
   BorrowerEnvironment,
   BorrowerEndpoint,
   buildSubmissionPayloads,
+  AdapterAssertionConsentMethod,
+  AdapterAssertionSkipReason,
   type BorrowerClientConfig,
   type UploadResult,
   type UploadedFileRef,
@@ -14,6 +16,10 @@ export {
   type ConnectionTestResult,
   type ConsentEventResult,
   type SubmissionPayloads,
+  type AdapterAssertionConsentEvidence,
+  type AdapterAssertionOutcome,
+  type AdapterAssertionPushBody,
+  type AdapterAssertionSubmitResult,
 } from './types.js'
 export {
   resolvePayloadTransfer,
