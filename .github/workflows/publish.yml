@@ -9,4 +9,4 @@ permissions:
 
 jobs:
   publish:
-    uses: ExtraGalaxies/finsys-core/.github/workflows/npm-package-publish.yml@0e5ea9ad63ca61cca3a85247ee9ebbc30e62cca1
+    uses: ExtraGalaxies/finsys-core/.github/workflows/npm-package-publish.yml@232a0318c134c7cac2b2b807aa59baecbae9e481
