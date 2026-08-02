@@ -1,6 +1,6 @@
 {
   "name": "@finsys/borrower-client",
-  "version": "3.8.0",
+  "version": "3.9.0",
   "description": "Client library for the FinSys Borrower API — authentication, file uploads, and two-step loan application submission",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -43,10 +43,10 @@
     "form-data": "^4.0.1"
   },
   "peerDependencies": {
-    "@finsys/core": "^2.0.0 || ^3.0.0 || ^4.0.0"
+    "@finsys/core": "^2.0.0 || ^3.0.0 || ^4.0.0 || ^5.0.0"
   },
   "devDependencies": {
-    "@finsys/core": "^3.3.0",
+    "@finsys/core": "^4.9.0",
     "@types/node": "^25.3.2",
     "tsup": "^8.4.0",
     "typescript": "^5.9.3",
