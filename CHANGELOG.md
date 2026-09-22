@@ -7,6 +7,30 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 Entries start at 3.11.0 — the release that introduced this file. Earlier
 versions are described by their GitHub Releases.
 
+## [Unreleased] - 3.12.0
+
+### Added
+
+- **Route the `experian_report` and `management_account` upload fields to
+  extraction (SYS-3706).** `@finsys/core` 9.4.0 adds two document types
+  (`experianReports`, `managementAccounts`). Without a document pattern their
+  file fields fell through to `supplementaryDoc`: the file was stored but
+  never extracted.
+- **Release only with finsys-api support.** finsys-api must accept the
+  `experianReports` / `managementAccounts` fields (SYS-3675, SYS-3703) before
+  this ships; until then an upload under the new keys is not stored at all,
+  which is worse than the `supplementaryDoc` fallback it replaces.
+
+### Changed
+
+- **The payload contract test now checks file fields route as documents.**
+  The existing check only asserted that every base-field-spec name resolves
+  to *some* rule, and every name does (as an `ihs_column`), so it passed for
+  the two new file fields while they fell through to `supplementaryDoc`. Each
+  `type: 'file'` spec must now resolve to `kind: 'document'` with `apiField`
+  equal to its declared `document_type` and `format` equal to its
+  `wire_format`.
+
 ## [3.11.0]
 
 ### Changed
