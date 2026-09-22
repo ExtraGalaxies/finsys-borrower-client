@@ -1,7 +1,7 @@
 {
   "name": "@finsys/borrower-client",
-  "version": "3.11.0",
-  "description": "Client library for the FinSys Borrower API \u2014 authentication, file uploads, and two-step loan application submission",
+  "version": "3.12.0",
+  "description": "Client library for the FinSys Borrower API — authentication, file uploads, and two-step loan application submission",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
