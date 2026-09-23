@@ -54,6 +54,11 @@ const DOCUMENT_PATTERNS: readonly DocumentPattern[] = [
   { pattern: /^form9$/, apiField: 'form9', format: 'url_string' },
   { pattern: /^ssm$/, apiField: 'ssm', format: 'url_string' },
   { pattern: /^ic$/, apiField: 'ic', format: 'url_string' },
+  // SYS-3706: the first two document types added after the v1 surface
+  // (@finsys/core 9.4.0). Exact names: a variant must be added deliberately,
+  // and the file-field contract test fails until it is.
+  { pattern: /^experian_report$/, apiField: 'experianReports', format: 'url_string' },
+  { pattern: /^management_account$/, apiField: 'managementAccounts', format: 'path_array' },
   { pattern: /^supplementaryDoc_/, apiField: 'supplementaryDoc', format: 'path_only' },
 ]
 

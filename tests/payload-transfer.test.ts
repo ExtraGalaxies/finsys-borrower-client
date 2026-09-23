@@ -27,6 +27,8 @@ describe('resolvePayloadTransfer', () => {
       ['form9', 'form9', 'url_string'],
       ['ssm', 'ssm', 'url_string'],
       ['ic', 'ic', 'url_string'],
+      ['experian_report', 'experianReports', 'url_string'],
+      ['management_account', 'managementAccounts', 'path_array'],
     ])('routes single-file %s as document → %s', (name, apiField, format) => {
       const rule = resolvePayloadTransfer(name)
       expect(rule).not.toBeNull()
@@ -101,12 +103,36 @@ describe('resolvePayloadTransfer', () => {
       }
       expect(unresolved, `BASE_FIELD_SPECS names with no rule: ${unresolved.join(', ')}`).toHaveLength(0)
     })
+
+    // SYS-3706: the check above is too weak for FILE fields. A file field
+    // that matches no document pattern still resolves, as an ihs_column
+    // (every base-spec name does), so a new document type added to core
+    // passed it while its upload fell through to supplementaryDoc: stored,
+    // never extracted. Every file field must route as a document, to the API
+    // field and wire format core declares for it.
+    it('every file base-field-spec routes as a document to its declared document_type and wire_format', () => {
+      const wrong: string[] = []
+      for (const spec of getBaseFieldSpecMap().values()) {
+        const s = spec as { name: string; type?: string; document_type?: string; wire_format?: string }
+        if (s.type !== 'file' || !s.document_type) continue
+        const rule = resolvePayloadTransfer(s.name)
+        if (
+          rule?.kind !== 'document' ||
+          rule.apiField !== s.document_type ||
+          (s.wire_format !== undefined && rule.format !== s.wire_format)
+        ) {
+          const got = rule ? (rule.kind === 'document' ? `${rule.apiField}/${rule.format}` : rule.kind) : 'null'
+          wrong.push(`${s.name} -> ${got} (want ${s.document_type}/${s.wire_format})`)
+        }
+      }
+      expect(wrong, `file fields not routed to their document type: ${wrong.join(', ')}`).toHaveLength(0)
+    })
   })
 
   describe('listDocumentPatterns', () => {
-    it('returns the 8 known document patterns', () => {
+    it('returns the 10 known document patterns', () => {
       const patterns = listDocumentPatterns()
-      expect(patterns).toHaveLength(8)
+      expect(patterns).toHaveLength(10)
       const apiFields = new Set(patterns.map((p) => p.apiField))
       expect(apiFields).toEqual(
         new Set([
@@ -117,6 +143,8 @@ describe('resolvePayloadTransfer', () => {
           'form9',
           'ssm',
           'ic',
+          'experianReports',
+          'managementAccounts',
           'supplementaryDoc',
         ])
       )
