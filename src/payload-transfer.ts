@@ -1,16 +1,15 @@
 import { getBaseFieldSpecMap } from '@finsys/core'
 
 /**
- * SYS-2347: payload-transfer registry for the FinSys Borrower API.
+ * Payload-transfer registry for the FinSys Borrower API.
  *
  * Owns the contract for "given a form field name, where (and how) does
- * it land on the FinSys API submission payload?". The registry is the
- * single authority that `buildSubmissionPayloads()` consults — replaces
- * the pre-fix pattern of using `BASE_FIELD_SPECS` from @finsys/core as
- * an allowlist, which conflated form-schema membership with API
- * payload-routing intent and let form-only field names like
- * `bank_statement_t1` slip through onto the payload as top-level
- * scalars (SYS-2321 production crash).
+ * it land on the FinSys API submission payload?". `buildSubmissionPayloads()`
+ * consults this registry as the single authority for field routing. Using
+ * `BASE_FIELD_SPECS` from @finsys/core directly as an allowlist would
+ * conflate form-schema membership with payload-routing intent and let
+ * form-only field names like `bank_statement_t1` slip through onto the
+ * payload as top-level scalars.
  *
  * Lives in @finsys/borrower-client (not @finsys/core) because payload
  * routing for the borrower endpoint is this lib's specialty by
@@ -54,9 +53,8 @@ const DOCUMENT_PATTERNS: readonly DocumentPattern[] = [
   { pattern: /^form9$/, apiField: 'form9', format: 'url_string' },
   { pattern: /^ssm$/, apiField: 'ssm', format: 'url_string' },
   { pattern: /^ic$/, apiField: 'ic', format: 'url_string' },
-  // SYS-3706: the first two document types added after the v1 surface
-  // (@finsys/core 9.4.0). Exact names: a variant must be added deliberately,
-  // and the file-field contract test fails until it is.
+  // Exact names — a variant must be added deliberately, and the
+  // file-field contract test fails until it is.
   { pattern: /^experian_report$/, apiField: 'experianReports', format: 'url_string' },
   { pattern: /^management_account$/, apiField: 'managementAccounts', format: 'path_array' },
   { pattern: /^supplementaryDoc_/, apiField: 'supplementaryDoc', format: 'path_only' },

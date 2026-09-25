@@ -17,7 +17,7 @@ export enum BorrowerEndpoint {
   UPLOAD_FILE = 'uploadFile',
   STATUS = 'status',
   CREATE_CONSENT = 'createConsent',
-  /** SYS-3022: POST /adapters/:adapterId/assertions — see submitAdapterAssertion(). */
+  /** POST /adapters/:adapterId/assertions — see submitAdapterAssertion(). */
   SUBMIT_ADAPTER_ASSERTION = 'submitAdapterAssertion',
 }
 
@@ -43,7 +43,7 @@ export interface ConsentEventResult {
  * return only a `message` string, so `code`/`desc` may be undefined.
  *
  * Source shape: `finsys-api` returns errors as `{ err: { code, desc } }`
- * via its global errorHandler middleware. See SYS-2437.
+ * via its global errorHandler middleware.
  */
 export interface UpstreamErrorDetail {
   /** Upstream error code (e.g. "APPLICATION_IS_FINALIZED" from finsys-api err.code). */
@@ -60,10 +60,10 @@ export interface BorrowerClientConfig {
     clientId: string
     clientSecret: string
     gatewayKey?: string
-    /** SYS-2150: per-tenant FinXtract APIM subscription key for OCR billing attribution. */
+    /** Per-tenant FinXtract APIM subscription key for OCR billing attribution. */
     finxtractApiKey?: string
     /**
-     * SYS-3022: shared service-account key for the adapter assertion-push
+     * Shared service-account key for the adapter assertion-push
      * endpoint (`submitAdapterAssertion()`). Sent as `X-Finhub-Service-Key`
      * — a static shared secret, NOT exchanged via `login()` — mirroring
      * finsys-api's `authorizeServiceAccount` middleware and FinHub's own
@@ -87,7 +87,7 @@ export interface UploadResult {
   url?: string
   data?: unknown
   message?: string
-  /** Typed upstream error detail on failure (SYS-2437). Undefined on success. */
+  /** Typed upstream error detail on failure. Undefined on success. */
   upstream?: UpstreamErrorDetail
 }
 
@@ -98,7 +98,7 @@ export interface SubmissionResult {
   message?: string
   errors?: Record<string, string[]>
   data?: unknown
-  /** Typed upstream error detail on failure (SYS-2437). Undefined on success. */
+  /** Typed upstream error detail on failure. Undefined on success. */
   upstream?: UpstreamErrorDetail
 }
 
@@ -106,7 +106,7 @@ export interface UpdateResult {
   success: boolean
   message?: string
   data?: unknown
-  /** Typed upstream error detail on failure (SYS-2437). Undefined on success. */
+  /** Typed upstream error detail on failure. Undefined on success. */
   upstream?: UpstreamErrorDetail
 }
 
@@ -116,7 +116,7 @@ export interface StatusResult {
   status?: string
   message?: string
   data?: unknown
-  /** Typed upstream error detail on failure (SYS-2437). Undefined on success. */
+  /** Typed upstream error detail on failure. Undefined on success. */
   upstream?: UpstreamErrorDetail
 }
 
@@ -125,7 +125,7 @@ export interface ConnectionTestResult {
   message: string
 }
 
-// ─── Adapter Assertion Push (SYS-3022) ───────────────────────────────────
+// ─── Adapter Assertion Push ───────────────────────────────────────────────
 //
 // Client surface for POST /adapters/:adapterId/assertions — finsys-api's
 // externally-orchestrated, assertion-ingested adapter mode. An external
@@ -187,16 +187,11 @@ export enum AdapterAssertionSkipReason {
  */
 export interface AdapterAssertionConsentEvidence {
   /**
-   * SYS-3040 — REQUIRED. The consent-definition engine's (SYS-2215) id
-   * this ceremony's evidence is recorded against. Must be registered to
-   * the target application's program (finsys-api rejects with
-   * `CONSENT_DEF_NOT_REGISTERED_FOR_PROGRAM` otherwise), and that
-   * definition must have a current version whose text equals
-   * `bindingMessage` exactly (`CONSENT_TEXT_MISMATCH` otherwise) — see
-   * `submitAdapterAssertion()`'s doc comment on client.ts for the full
-   * error-mapping story. Before SYS-3040 this wasn't part of the payload
-   * at all; every push recorded consent under a single hardcoded
-   * definition regardless of adapter or program.
+   * REQUIRED. The consent-definition engine's id this ceremony's evidence
+   * is recorded against. Must be registered to the target application's
+   * program (finsys-api rejects with `CONSENT_DEF_NOT_REGISTERED_FOR_PROGRAM`
+   * otherwise), and that definition must have a current version whose text
+   * equals `bindingMessage` exactly (`CONSENT_TEXT_MISMATCH` otherwise).
    */
   consentDefinitionId: number
   method: AdapterAssertionConsentMethod
@@ -311,11 +306,11 @@ const DEFAULT_NON_UPDATABLE_FIELDS = new Set([
 ])
 
 /**
- * Document-routing rules now live in `./payload-transfer.ts`. The
+ * Document-routing rules live in `./payload-transfer.ts`. The
  * `resolvePayloadTransfer()` helper imported above returns a
  * discriminated union covering both `ihs_column` (passthrough scalar)
  * and `document` (file-field routing) — see that module for the full
- * registry + rationale (SYS-2347).
+ * registry and rationale.
  */
 
 type DocumentRule = Extract<PayloadTransferRule, { kind: 'document' }>
@@ -340,7 +335,8 @@ type DocumentRule = Extract<PayloadTransferRule, { kind: 'document' }>
  * - `financials*`          → `financialStatements: [{ path, year: ordinal }]`
  * - `epf_statement_tN`     → `epfStatements: [{ path, month: N, year }]`
  * - `payslip_statement_tN` → `payslips: [{ path, month: N, year }]`
- * - `form9` / `ssm` / `ic` → top-level URL string
+ * - `management_account`   → `managementAccounts: [{ path, year: ordinal }]`
+ * - `form9` / `ssm` / `ic` / `experian_report` → top-level URL string
  * - Unrecognized file fields → routed to `supplementaryDoc: [{ path }]`
  *
  * @param formData - The validated form data (metadata only, no file fields)
@@ -378,8 +374,7 @@ export function buildSubmissionPayloads(
       createPayload[key] = value
     } else if (rule.kind === 'document') {
       // Caller misuse — file URL passed as a top-level scalar instead of
-      // via fileFields. Pre-fix this silently landed on the payload as a
-      // bogus column write and crashed finsys-api's TypeORM (SYS-2321).
+      // via fileFields.
       const msg = `buildSubmissionPayloads: formData contains document field "${key}" — pass it via the fileFields argument instead`
       if (strict) throw new Error(msg)
       console.warn(msg)
@@ -434,7 +429,8 @@ export function buildSubmissionPayloads(
     } else if (format === 'path_only') {
       documents[apiField] = entries.map((e) => ({ path: encodeUrl(e.url) }))
     } else {
-      // path_array: bank statements and financials
+      // path_array: multiple files per field (bank statements, financials,
+      // EPF statements, payslips, management accounts)
       documents[apiField] = entries.map((e, index) => {
         if (e.mapping.tIndex !== undefined) {
           return { path: encodeUrl(e.url), month: e.mapping.tIndex, year: currentYear }

@@ -16,8 +16,8 @@ import type {
 } from './types.js'
 import { BorrowerEndpoint } from './types.js'
 
-// SYS-3022: the header name must match finsys-api's SERVICE_ACCOUNT_HEADER
-// constant (src/types/FinhubUserContext.ts) and FinHub's own outbound
+// Must match finsys-api's SERVICE_ACCOUNT_HEADER constant
+// (src/types/FinhubUserContext.ts) and FinHub's own outbound
 // service-account gateway (finsys_api_gateway.ts). Kept literal here
 // rather than imported from a shared package — finsys-api is a peer, not
 // a dep of this client.
@@ -62,10 +62,10 @@ export class BorrowerApiClient {
   /**
    * Base headers shared by every JSON request against finsys-api,
    * regardless of auth mode (bearer-token or service-account). Extracted
-   * so the WAF-bypass User-Agent isn't copy-pasted per call site (SYS-3022
-   * review finding): `authenticatedHeaders()` layers `Authorization` +
-   * the FinXtract key on top of this; `submitAdapterAssertion()` layers
-   * the service-account key on top instead.
+   * so the WAF-bypass User-Agent isn't copy-pasted per call site:
+   * `authenticatedHeaders()` layers `Authorization` + the FinXtract key on
+   * top of this; `submitAdapterAssertion()` layers the service-account key
+   * on top instead.
    */
   private baseJsonHeaders(): Record<string, string> {
     return {
@@ -150,7 +150,7 @@ export class BorrowerApiClient {
       Authorization: `Bearer ${token}`,
       ...this.baseJsonHeaders(),
     }
-    // SYS-2150: forward per-tenant FinXtract key so finsys-api can attribute OCR billing correctly.
+    // Forward per-tenant FinXtract key so finsys-api can attribute OCR billing correctly.
     if (this.config.credentials.finxtractApiKey) {
       headers['X-Finxtract-Subscription-Key'] = this.config.credentials.finxtractApiKey
     }
@@ -280,7 +280,7 @@ export class BorrowerApiClient {
   /**
    * Extract typed upstream error detail and a human-readable message from an
    * axios error response. Centralizes the fallback chain used by every
-   * axios-error catch block in this client. See SYS-2437.
+   * axios-error catch block in this client.
    *
    * Fallback for the message string:
    *   err.desc  ->  err.code  ->  respData.message  ->  respData.error  ->  'Unknown error'
@@ -451,7 +451,7 @@ export class BorrowerApiClient {
   }
 
   /**
-   * SYS-3022 — push an externally-orchestrated adapter assertion:
+   * Push an externally-orchestrated adapter assertion:
    * `POST /adapters/:adapterId/assertions`.
    *
    * Used by an external BFF that has already run its own live-consent
@@ -503,13 +503,12 @@ export class BorrowerApiClient {
         }
       )
 
-      // SYS-3022 review finding (SYS-2946 hardening class): don't declare
-      // success on a 201 whose envelope is missing or malformed. Validate
-      // the two fields every caller depends on for correctness —
-      // consentEventId (used to correlate the consent record) and
-      // signalCount (used to confirm how much data landed). adapterRunId
-      // is legitimately `number | null` for a skip outcome — it is passed
-      // through as-is, never used as a success gate.
+      // Don't declare success on a 201 whose envelope is missing or
+      // malformed. Validate the two fields every caller depends on for
+      // correctness — consentEventId (used to correlate the consent
+      // record) and signalCount (used to confirm how much data landed).
+      // adapterRunId is legitimately `number | null` for a skip outcome —
+      // it is passed through as-is, never used as a success gate.
       const responseData = response.data?.data as
         | { consentEventId?: unknown; adapterRunId?: unknown; signalCount?: unknown }
         | undefined

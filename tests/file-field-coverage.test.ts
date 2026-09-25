@@ -4,11 +4,11 @@ import { buildSubmissionPayloads } from '../src/types.js'
 
 /**
  * Guard test: every file-type field in the base specs must have a matching
- * FILE_FIELD_RULES entry in types.ts. This prevents new file fields from
- * silently falling through to supplementaryDoc.
+ * DOCUMENT_PATTERNS entry in payload-transfer.ts. This prevents new file
+ * fields from silently falling through to supplementaryDoc.
  *
  * If this test fails, add an explicit rule for the new file field in
- * FILE_FIELD_RULES (src/types.ts).
+ * DOCUMENT_PATTERNS (src/payload-transfer.ts).
  */
 describe('file field coverage guard', () => {
   it('every file-type base spec field produces a non-supplementaryDoc mapping', () => {
