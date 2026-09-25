@@ -82,14 +82,14 @@ describe('resolvePayloadTransfer', () => {
 
     it('returns null for typo of a document field name', () => {
       // "bonkstatement_t1" doesn't match any document pattern AND isn't in
-      // BASE_FIELD_SPECS — exactly the kind of fat-finger that would have
-      // silently slipped through pre-fix.
+      // BASE_FIELD_SPECS — exactly the kind of fat-finger this registry
+      // is designed to catch.
       expect(resolvePayloadTransfer('bonkstatement_t1')).toBeNull()
     })
   })
 
   describe('contract: every BASE_FIELD_SPECS name resolves to a rule', () => {
-    // SYS-2347 contract test — if a new form field is added to @finsys/core
+    // Contract test — if a new form field is added to @finsys/core
     // without thinking about how it lands on the API payload, this fails.
     // Either the new field is a real Ihs column (resolves to ihs_column
     // automatically) or it needs a document pattern in DOCUMENT_PATTERNS.
@@ -104,7 +104,7 @@ describe('resolvePayloadTransfer', () => {
       expect(unresolved, `BASE_FIELD_SPECS names with no rule: ${unresolved.join(', ')}`).toHaveLength(0)
     })
 
-    // SYS-3706: the check above is too weak for FILE fields. A file field
+    // The check above is too weak for FILE fields. A file field
     // that matches no document pattern still resolves, as an ihs_column
     // (every base-spec name does), so a new document type added to core
     // passed it while its upload fell through to supplementaryDoc: stored,

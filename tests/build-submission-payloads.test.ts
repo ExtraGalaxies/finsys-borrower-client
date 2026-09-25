@@ -366,8 +366,7 @@ describe('SYS-2347 regression: caller misuse — file URL in formData instead of
       // The real Ihs columns pass through.
       expect(createPayload.fullName).toBe('John Doe')
       expect(createPayload.email).toBe('john@example.com')
-      // The misplaced document key does NOT land on the payload — that's
-      // the SYS-2321 fix. Pre-fix this would have been the URL string.
+      // The misplaced document key does NOT land on the payload.
       expect(createPayload).not.toHaveProperty('bank_statement_t1')
       // And we yelled about it.
       expect(warnSpy).toHaveBeenCalledWith(

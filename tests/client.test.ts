@@ -109,7 +109,7 @@ describe('BorrowerApiClient.createConsentEvent', () => {
   })
 
   it('sends X-Finxtract-Subscription-Key header when finxtractApiKey is configured', async () => {
-    // SYS-2150: the per-tenant FinXtract key must reach finsys-api so OCR calls
+    // The per-tenant FinXtract key must reach finsys-api so OCR calls
     // are attributed to the correct billing subscriber.
     const client = new BorrowerApiClient({
       environment: BorrowerEnvironment.STAGING,
@@ -277,7 +277,6 @@ describe('BorrowerApiClient.createConsentEvent', () => {
   })
 
   it('falls back through err.desc when response uses the structured { err: { code, desc } } shape', async () => {
-    // Regression for SYS-2437: previously fell through to 'Unknown error'.
     const client = makeClient()
     mockLogin()
 
@@ -300,7 +299,6 @@ describe('BorrowerApiClient.createConsentEvent', () => {
   })
 
   it('omits status from message when axios error has no response (network failure)', async () => {
-    // Regression: previously rendered "Consent creation failed (undefined): ..."
     const client = makeClient()
     mockLogin()
 
@@ -548,7 +546,7 @@ describe('BorrowerApiClient.getApplicationStatus', () => {
     })
     expect(result.message).toContain('IHS application not found.')
     expect(result.ihsId).toBe('IHS-999')
-    // SYS-2437 follow-up: data field is now populated on failure for symmetry with the other methods
+    // data is populated on failure too, for symmetry with the other methods
     expect(result.data).toEqual({ err: { code: 'IHS_NOT_FOUND', desc: 'IHS application not found.' } })
   })
 
@@ -635,7 +633,7 @@ describe('BorrowerApiClient.uploadFile', () => {
     })
     expect(result.message).toContain('File exceeds size limit.')
     expect(result.message).toMatch(/\(400\)/)
-    // SYS-2437 follow-up: data field is now populated on failure for symmetry with the other methods
+    // data is populated on failure too, for symmetry with the other methods
     expect(result.data).toEqual({ err: { code: 'FILE_TOO_LARGE', desc: 'File exceeds size limit.' } })
   })
 
@@ -671,10 +669,9 @@ describe('BorrowerApiClient.uploadFile', () => {
 
     expect(result.success).toBe(false)
     expect(result.upstream).toEqual({ code: undefined, desc: undefined, status: 403 })
-    // Regression check: message format MUST include status. Old format was
-    // just 'File upload failed' with no parens — the lead-gen-ui classifier's
-    // STATUS_IN_MESSAGE regex never matched, causing 403 WAF blocks on upload
-    // to misclassify as 'unknown' instead of 'blocked'.
+    // Message format MUST include status: the lead-gen-ui classifier's
+    // STATUS_IN_MESSAGE regex depends on the parenthesized status code to
+    // tell a WAF block apart from an unknown failure.
     expect(result.message).toBe('File upload failed (403): Unknown error')
   })
 

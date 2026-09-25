@@ -430,7 +430,7 @@ describe('BorrowerApiClient.submitAdapterAssertion', () => {
     expect(consent.bindingMessage).toBe('Confirm 012345 access?')
   })
 
-  // ── consentDefinitionId (SYS-3040) ───────────────────────────────
+  // ── consentDefinitionId ──────────────────────────────────────────
 
   it('passes consent.consentDefinitionId through verbatim as a number', async () => {
     const client = makeClient()
@@ -532,7 +532,7 @@ describe('BorrowerApiClient.submitAdapterAssertion', () => {
     [404, 'IHS_NOT_FOUND', 'No IHS application exists with the given id.'],
     [409, 'ADAPTER_NOT_EXTERNAL_MODE', 'The adapter is registered, but not in external-assertion mode. This endpoint only accepts pushes for adapters declared external-assertion.'],
     [409, 'IHS_NOT_IN_CREATING_APPLICATION', 'The IHS application is not in CREATING_APPLICATION status.'],
-    // SYS-3040: consent-definition guards (d2/d3/d4 in adapterAssertionPushService.ts).
+    // Consent-definition guards (d2/d3/d4 in adapterAssertionPushService.ts).
     [403, 'CONSENT_DEF_NOT_REGISTERED_FOR_PROGRAM', "The referenced consentDefinitionId is not registered to the application's program."],
     [422, 'CONSENT_DEFINITION_NO_CURRENT_VERSION', 'The referenced consent definition has no current version to bind this consent event to.'],
     [422, 'CONSENT_TEXT_MISMATCH', "The asserted bindingMessage does not match the current version's text for this consent definition."],
