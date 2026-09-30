@@ -23,8 +23,8 @@ versions are described by their GitHub Releases.
   `baseUrl` isn't a bare http(s) origin, or if `environment` isn't `staging` or `production`.
   Plain `http` is accepted only for a local host: `localhost`, a loopback address, or a
   one-word name such as `finsys-api`.
-- **`normalizeBaseUrl()`** returns a configured URL as a bare origin, or throws. Consumers call
-  it at startup.
+- **`normalizeBaseUrl()`** returns a configured URL as a bare origin, or throws. Call it at
+  startup, before any client is built.
 
 ### Changed
 
@@ -33,15 +33,15 @@ versions are described by their GitHub Releases.
   mistyped env var, now throws on import.
 - **`BorrowerClientConfig` is a type, not an interface (SYS-3769).** It is now
   `BorrowerTarget & { credentials }`. `interface X extends BorrowerClientConfig` no longer
-  compiles, and `Partial<>` or `Omit<>` over it lose the "one target" rule. Build your own
-  types from `BorrowerTarget` and `BorrowerClientConfig['credentials']`.
-- **`BASE_URLS` and `ENDPOINT_PATHS` are frozen (SYS-3769).** Changing them at runtime throws.
+  compiles, and `Partial<>` or `Omit<>` over it drops the "one target" rule. Build derived
+  types from `BorrowerTarget` and `BorrowerClientConfig['credentials']` instead.
+- **`BASE_URLS` and `ENDPOINT_PATHS` are frozen (SYS-3769).** Neither can be changed at runtime.
 
 ### Migrating from 3.x
 
 Replace `endpointOverrides` with `baseUrl` set to the origin the overrides pointed at, for
 example `baseUrl: 'http://finsys-api:8006'`. Consumers that only pass `environment` need no
-change.
+config change.
 
 ## [3.12.0] - 2026-09-23
 

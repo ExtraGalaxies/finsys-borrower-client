@@ -92,8 +92,8 @@ Creates a client instance. Every call goes to one host. Pass exactly one of:
 
 `null` counts as not set. The constructor throws if both or neither are set, if `baseUrl`
 isn't a bare http(s) origin, if `environment` isn't `staging` or `production`, or if
-`endpointOverrides` (removed in 4.0.0) is passed. `client.baseUrl` holds the origin in use. Call `normalizeBaseUrl()` to check a
-configured URL at startup, before any client is built.
+`endpointOverrides` (removed in 4.0.0) is passed. `client.baseUrl` holds the origin in use.
+Call `normalizeBaseUrl()` to check a configured URL at startup, before any client is built.
 
 #### `login(): Promise<string>`
 
