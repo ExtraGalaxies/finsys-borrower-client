@@ -71,7 +71,7 @@ beforeEach(() => {
   mockedAxios.patch.mockResolvedValue({ data: { data: {} } } as any)
 })
 
-describe('BorrowerApiClient target (SYS-3769)', () => {
+describe('BorrowerApiClient target', () => {
   it('sends every call to baseUrl', async () => {
     const client = new BorrowerApiClient({ baseUrl: 'http://finsys-api:8006/', credentials })
     expect(client.baseUrl).toBe('http://finsys-api:8006')
@@ -99,42 +99,42 @@ describe('BorrowerApiClient target (SYS-3769)', () => {
     [
       'endpointOverrides',
       { environment: 'staging', endpointOverrides: {} },
-      'endpointOverrides was removed in 4.0.0 (SYS-3769); set baseUrl to the finsys-api origin instead',
+      'endpointOverrides was removed in 4.0.0; set baseUrl to the finsys-api origin instead',
     ],
     [
       'both targets',
       { environment: 'staging', baseUrl: 'http://finsys-api:8006' },
-      'Set either environment or baseUrl, not both (SYS-3769)',
+      'Set either environment or baseUrl, not both',
     ],
-    ['no target', {}, 'Set either environment or baseUrl (SYS-3769)'],
+    ['no target', {}, 'Set either environment or baseUrl'],
     [
       'null for both targets',
       { environment: null, baseUrl: null },
-      'Set either environment or baseUrl (SYS-3769)',
+      'Set either environment or baseUrl',
     ],
     [
       'an unknown environment',
       { environment: 'prod' },
-      'Unknown environment "prod"; use staging or production (SYS-3769)',
+      'Unknown environment "prod"; use staging or production',
     ],
     [
       'a URL as environment without repeating it',
       { environment: 'https://svc:hunter2@x.example/?token=secret-token' },
-      'Unknown environment; use staging or production (SYS-3769)',
+      'Unknown environment; use staging or production',
     ],
     [
       'a baseUrl with a path',
       { baseUrl: 'http://finsys-api:8006/auth/client/login' },
-      'baseUrl must be an origin only, like http://finsys-api:8006, with no path, query or fragment (SYS-3769)',
+      'baseUrl must be an origin only, like http://finsys-api:8006, with no path, query or fragment',
     ],
   ])('refuses %s', (_label, target, message) => {
     const config = { ...target, credentials } as unknown as BorrowerClientConfig
-    expect(() => new BorrowerApiClient(config)).toThrow(message)
+    expect(() => new BorrowerApiClient(config)).toThrow(new Error(message))
   })
 
   it.each([undefined, null])('refuses %j as the config', (config) => {
     expect(() => new BorrowerApiClient(config as unknown as BorrowerClientConfig)).toThrow(
-      'BorrowerApiClient needs a config object with environment or baseUrl (SYS-3769)'
+      new Error('BorrowerApiClient needs a config object with environment or baseUrl')
     )
   })
 

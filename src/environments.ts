@@ -22,7 +22,7 @@ export const ENDPOINT_PATHS: Readonly<Record<BorrowerEndpoint, string>> = Object
 })
 
 const NOT_A_URL =
-  'baseUrl must be an absolute http(s) URL, such as https://finsys-api.example.com (SYS-3769)'
+  'baseUrl must be an absolute http(s) URL, such as https://finsys-api.example.com'
 
 /** localhost, a loopback address, or a one-word Docker service name such as `finsys-api`. */
 function isLocalHost(hostname: string): boolean {
@@ -46,19 +46,19 @@ export function normalizeBaseUrl(raw: unknown): string {
     throw new Error(NOT_A_URL)
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('baseUrl must use http or https (SYS-3769)')
+    throw new Error('baseUrl must use http or https')
   }
   if (url.username || url.password) {
-    throw new Error('baseUrl must not contain a username or password (SYS-3769)')
+    throw new Error('baseUrl must not contain a username or password')
   }
   if (url.pathname !== '/' || url.search || url.hash) {
     throw new Error(
-      `baseUrl must be an origin only, like ${url.origin}, with no path, query or fragment (SYS-3769)`
+      `baseUrl must be an origin only, like ${url.origin}, with no path, query or fragment`
     )
   }
   if (url.protocol === 'http:' && !isLocalHost(url.hostname)) {
     throw new Error(
-      'baseUrl must use https unless the host is local, such as localhost or finsys-api (SYS-3769)'
+      'baseUrl must use https unless the host is local, such as localhost or finsys-api'
     )
   }
   return url.origin
@@ -71,22 +71,22 @@ export function normalizeBaseUrl(raw: unknown): string {
  */
 export function resolveBaseUrl(config: BorrowerClientConfig): string {
   if (typeof config !== 'object' || config === null) {
-    throw new Error('BorrowerApiClient needs a config object with environment or baseUrl (SYS-3769)')
+    throw new Error('BorrowerApiClient needs a config object with environment or baseUrl')
   }
   const raw: { environment?: unknown; baseUrl?: unknown; endpointOverrides?: unknown } = config
   // null counts as unset: JSON and YAML config have no other way to say it.
   const isSet = (value: unknown) => value !== undefined && value !== null
   if (isSet(raw.endpointOverrides)) {
     throw new Error(
-      'endpointOverrides was removed in 4.0.0 (SYS-3769); set baseUrl to the finsys-api origin instead'
+      'endpointOverrides was removed in 4.0.0; set baseUrl to the finsys-api origin instead'
     )
   }
   if (isSet(raw.environment) && isSet(raw.baseUrl)) {
-    throw new Error('Set either environment or baseUrl, not both (SYS-3769)')
+    throw new Error('Set either environment or baseUrl, not both')
   }
   if (isSet(raw.baseUrl)) return normalizeBaseUrl(raw.baseUrl)
   if (!isSet(raw.environment)) {
-    throw new Error('Set either environment or baseUrl (SYS-3769)')
+    throw new Error('Set either environment or baseUrl')
   }
   if (typeof raw.environment !== 'string' || !Object.hasOwn(BASE_URLS, raw.environment)) {
     // Repeat the value only when it looks like a name; a URL put here by
@@ -96,7 +96,7 @@ export function resolveBaseUrl(config: BorrowerClientConfig): string {
         ? ` "${raw.environment}"`
         : ''
     throw new Error(
-      `Unknown environment${shown}; use ${Object.values(BorrowerEnvironment).join(' or ')} (SYS-3769)`
+      `Unknown environment${shown}; use ${Object.values(BorrowerEnvironment).join(' or ')}`
     )
   }
   return BASE_URLS[raw.environment as BorrowerEnvironment]

@@ -11,7 +11,7 @@ function messageOf(fn: () => unknown): string {
 }
 
 const NOT_A_URL =
-  'baseUrl must be an absolute http(s) URL, such as https://finsys-api.example.com (SYS-3769)'
+  'baseUrl must be an absolute http(s) URL, such as https://finsys-api.example.com'
 
 describe('normalizeBaseUrl', () => {
   it.each([
@@ -23,7 +23,7 @@ describe('normalizeBaseUrl', () => {
 
   it('refuses a full endpoint URL and names the origin to use', () => {
     expect(messageOf(() => normalizeBaseUrl('http://finsys-api:8006/auth/client/login'))).toBe(
-      'baseUrl must be an origin only, like http://finsys-api:8006, with no path, query or fragment (SYS-3769)'
+      'baseUrl must be an origin only, like http://finsys-api:8006, with no path, query or fragment'
     )
   })
 
@@ -37,7 +37,7 @@ describe('normalizeBaseUrl', () => {
 
   it('refuses a username or password without repeating them', () => {
     const message = messageOf(() => normalizeBaseUrl('https://svc-user:hunter2@x.example'))
-    expect(message).toBe('baseUrl must not contain a username or password (SYS-3769)')
+    expect(message).toBe('baseUrl must not contain a username or password')
     expect(message).not.toContain('hunter2')
   })
 
@@ -45,7 +45,7 @@ describe('normalizeBaseUrl', () => {
     'refuses the non-http scheme in %j without repeating it',
     (raw) => {
       expect(messageOf(() => normalizeBaseUrl(raw))).toBe(
-        'baseUrl must use http or https (SYS-3769)'
+        'baseUrl must use http or https'
       )
     }
   )
@@ -65,7 +65,7 @@ describe('normalizeBaseUrl', () => {
     'http://host.docker.internal:8006',
   ])('refuses http for the non-local host in %j', (raw) => {
     expect(messageOf(() => normalizeBaseUrl(raw))).toBe(
-      'baseUrl must use https unless the host is local, such as localhost or finsys-api (SYS-3769)'
+      'baseUrl must use https unless the host is local, such as localhost or finsys-api'
     )
   })
 
@@ -78,6 +78,6 @@ describe('normalizeBaseUrl', () => {
   })
 
   it('takes a possibly unset env var and refuses undefined', () => {
-    expect(messageOf(() => normalizeBaseUrl(process.env.SYS_3769_NEVER_SET))).toBe(NOT_A_URL)
+    expect(messageOf(() => normalizeBaseUrl(process.env.BASE_URL_TEST_NEVER_SET))).toBe(NOT_A_URL)
   })
 })
