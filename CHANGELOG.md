@@ -7,7 +7,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 Entries start at 3.11.0 — the release that introduced this file. Earlier
 versions are described by their GitHub Releases.
 
-## [Unreleased] - 4.0.0
+## [4.0.0] - 2026-09-30
 
 ### Removed
 
