@@ -43,9 +43,31 @@ describe('normalizeBaseUrl', () => {
     expect(message).not.toContain('hunter2')
   })
 
-  it.each(['ftp://x.example', 'finsys-api:8006'])('refuses the non-http scheme in %j', (raw) => {
-    expect(messageOf(() => normalizeBaseUrl(raw))).toMatch(
-      /^baseUrl must use http or https, not .+: \(SYS-3769\)$/
+  it.each(['ftp://x.example', 'finsys-api:8006', 'svc-user:hunter2@x.example', 'apitoken123:x'])(
+    'refuses the non-http scheme in %j without repeating it',
+    (raw) => {
+      expect(messageOf(() => normalizeBaseUrl(raw))).toBe(
+        'baseUrl must use http or https (SYS-3769)'
+      )
+    }
+  )
+
+  it.each([
+    'http://localhost:8006',
+    'http://127.0.0.1:8006',
+    'http://[::1]:8006',
+    'http://finsys-api:8006',
+  ])('accepts http for the local host in %j', (raw) => {
+    expect(normalizeBaseUrl(raw)).toBe(raw)
+  })
+
+  it.each([
+    'http://finsys-api.finhero.asia',
+    'http://10.0.0.5:8006',
+    'http://host.docker.internal:8006',
+  ])('refuses http for the non-local host in %j', (raw) => {
+    expect(messageOf(() => normalizeBaseUrl(raw))).toBe(
+      'baseUrl must use https unless the host is local, such as localhost or finsys-api (SYS-3769)'
     )
   })
 
@@ -54,6 +76,10 @@ describe('normalizeBaseUrl', () => {
   })
 
   it('refuses a value that is not a string', () => {
-    expect(messageOf(() => normalizeBaseUrl(8006 as unknown as string))).toBe(NOT_A_URL)
+    expect(messageOf(() => normalizeBaseUrl(8006))).toBe(NOT_A_URL)
+  })
+
+  it('takes an env var that may be unset', () => {
+    expect(messageOf(() => normalizeBaseUrl(process.env.SYS_3769_NEVER_SET))).toBe(NOT_A_URL)
   })
 })
