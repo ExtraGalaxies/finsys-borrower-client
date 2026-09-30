@@ -19,3 +19,34 @@ export const ENDPOINT_PATHS: Record<BorrowerEndpoint, string> = {
   // resolveUrl(SUBMIT_ADAPTER_ASSERTION, `${adapterId}/assertions`).
   [BorrowerEndpoint.SUBMIT_ADAPTER_ASSERTION]: '/adapters',
 }
+
+const NOT_A_URL =
+  'baseUrl must be an absolute http(s) URL, such as https://finsys-api.example.com (SYS-3769)'
+
+/**
+ * Returns `raw` as a bare origin such as `http://finsys-api:8006`, or throws.
+ * Every call appends a fixed path to this origin, so a path here is a mistake,
+ * usually an old per-endpoint URL pasted in whole. Messages never repeat the
+ * path, query or password, which can carry secrets.
+ */
+export function normalizeBaseUrl(raw: string): string {
+  if (typeof raw !== 'string') throw new Error(NOT_A_URL)
+  let url: URL
+  try {
+    url = new URL(raw.trim())
+  } catch {
+    throw new Error(NOT_A_URL)
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error(`baseUrl must use http or https, not ${url.protocol} (SYS-3769)`)
+  }
+  if (url.username || url.password) {
+    throw new Error('baseUrl must not contain a username or password (SYS-3769)')
+  }
+  if (url.pathname !== '/' || url.search || url.hash) {
+    throw new Error(
+      `baseUrl must be an origin only, like ${url.origin}, with no path, query or fragment (SYS-3769)`
+    )
+  }
+  return url.origin
+}

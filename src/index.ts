@@ -1,5 +1,5 @@
 export { BorrowerApiClient } from './client.js'
-export { BASE_URLS, ENDPOINT_PATHS } from './environments.js'
+export { BASE_URLS, ENDPOINT_PATHS, normalizeBaseUrl } from './environments.js'
 export {
   BorrowerEnvironment,
   BorrowerEndpoint,
