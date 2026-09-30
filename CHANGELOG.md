@@ -18,11 +18,24 @@ versions are described by their GitHub Releases.
 ### Added
 
 - **`baseUrl` (SYS-3769).** Pass `baseUrl` (any finsys-api origin) or `environment` (a built-in
-  host), not both. Every call goes to that one origin, which `client.baseUrl` exposes. The
-  constructor throws if both or neither are set, if `baseUrl` has a path, query or fragment, or
-  if `environment` isn't `staging` or `production`.
+  host), not both. `null` counts as not set. Every call goes to that one origin, which the
+  read-only `client.baseUrl` exposes. The constructor throws if both or neither are set, if
+  `baseUrl` isn't a bare http(s) origin, or if `environment` isn't `staging` or `production`.
+  Plain `http` is accepted only for a local host: `localhost`, a loopback address, or a
+  one-word name such as `finsys-api`.
 - **`normalizeBaseUrl()`** returns a configured URL as a bare origin, or throws. Consumers call
   it at startup.
+
+### Changed
+
+- **The constructor throws on a bad config (SYS-3769).** 3.x accepted any config and failed
+  later, when a call returned `{ success: false }`. A client built when a module loads, from a
+  mistyped env var, now throws on import.
+- **`BorrowerClientConfig` is a type, not an interface (SYS-3769).** It is now
+  `BorrowerTarget & { credentials }`. `interface X extends BorrowerClientConfig` no longer
+  compiles, and `Partial<>` or `Omit<>` over it lose the "one target" rule. Build your own
+  types from `BorrowerTarget` and `BorrowerClientConfig['credentials']`.
+- **`BASE_URLS` and `ENDPOINT_PATHS` are frozen (SYS-3769).** Changing them at runtime throws.
 
 ### Migrating from 3.x
 
