@@ -168,6 +168,15 @@ describe('BorrowerApiClient target (SYS-3769)', () => {
     expect(client.baseUrl).toBe('http://finsys-api:8006')
   })
 
+  it('keeps its host when baseUrl is redefined on the client', async () => {
+    const client = new BorrowerApiClient({ baseUrl: 'http://finsys-api:8006', credentials })
+    Object.defineProperty(client, 'baseUrl', { value: 'https://other.example' })
+
+    const urls = await urlsOfEveryCall(client)
+
+    expect(urls.filter((url) => !url.startsWith('http://finsys-api:8006/'))).toEqual([])
+  })
+
   it('refuses changes to BASE_URLS and ENDPOINT_PATHS at runtime', () => {
     expect(() => {
       ;(BASE_URLS as Record<string, string>)[BorrowerEnvironment.PRODUCTION] = 'https://other.example'

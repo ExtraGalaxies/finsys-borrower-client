@@ -43,7 +43,7 @@ export class BorrowerApiClient {
 
   /** Full URL for `endpoint` on `baseUrl`, with `suffix` appended as a path segment. */
   private resolveUrl(endpoint: BorrowerEndpoint, suffix?: string): string {
-    const url = `${this.baseUrl}${ENDPOINT_PATHS[endpoint]}`
+    const url = `${this.#baseUrl}${ENDPOINT_PATHS[endpoint]}`
     return suffix ? `${url}/${suffix}` : url
   }
 
