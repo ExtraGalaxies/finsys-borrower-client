@@ -1,4 +1,4 @@
-import { BorrowerEnvironment, BorrowerEndpoint } from './types.js'
+import { BorrowerEnvironment, BorrowerEndpoint, type BorrowerClientConfig } from './types.js'
 
 export const BASE_URLS: Record<BorrowerEnvironment, string> = {
   [BorrowerEnvironment.STAGING]: 'https://finsys-api-stage.finhero.asia',
@@ -49,4 +49,31 @@ export function normalizeBaseUrl(raw: string): string {
     )
   }
   return url.origin
+}
+
+/**
+ * The origin every call from a client with `config` goes to, or throws. The
+ * types already rule these cases out; this also catches plain-JS callers and
+ * config read from files.
+ */
+export function resolveBaseUrl(config: BorrowerClientConfig): string {
+  const raw: { environment?: unknown; baseUrl?: unknown; endpointOverrides?: unknown } = config
+  if (raw.endpointOverrides !== undefined) {
+    throw new Error(
+      'endpointOverrides was removed in 4.0.0 (SYS-3769); set baseUrl to the finsys-api origin instead'
+    )
+  }
+  if (raw.environment !== undefined && raw.baseUrl !== undefined) {
+    throw new Error('Set either environment or baseUrl, not both (SYS-3769)')
+  }
+  if (raw.baseUrl !== undefined) return normalizeBaseUrl(raw.baseUrl as string)
+  if (raw.environment === undefined) {
+    throw new Error('Set either environment or baseUrl (SYS-3769)')
+  }
+  if (typeof raw.environment !== 'string' || !Object.hasOwn(BASE_URLS, raw.environment)) {
+    throw new Error(
+      `Unknown environment "${String(raw.environment)}"; use ${Object.values(BorrowerEnvironment).join(' or ')} (SYS-3769)`
+    )
+  }
+  return BASE_URLS[raw.environment as BorrowerEnvironment]
 }

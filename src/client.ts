@@ -1,6 +1,6 @@
 import axios, { type AxiosError } from 'axios'
 import FormData from 'form-data'
-import { BASE_URLS, ENDPOINT_PATHS } from './environments.js'
+import { ENDPOINT_PATHS, resolveBaseUrl } from './environments.js'
 import type {
   BorrowerClientConfig,
   CachedToken,
@@ -25,26 +25,20 @@ const SERVICE_ACCOUNT_KEY_HEADER = 'X-Finhub-Service-Key'
 
 export class BorrowerApiClient {
   private config: BorrowerClientConfig
+  /** The origin every call goes to, such as `https://finsys-api.finhero.asia`. */
+  readonly baseUrl: string
   private cachedToken: CachedToken | null = null
   /** Deduplicates concurrent login() calls to prevent token refresh races. */
   private pendingLogin: Promise<string> | null = null
 
   constructor(config: BorrowerClientConfig) {
+    this.baseUrl = resolveBaseUrl(config)
     this.config = config
   }
 
-  /**
-   * Resolve the full URL for a given endpoint.
-   * Uses endpointOverrides if provided, otherwise derives from environment base URL.
-   */
+  /** Full URL for `endpoint` on `baseUrl`, with `suffix` appended as a path segment. */
   private resolveUrl(endpoint: BorrowerEndpoint, suffix?: string): string {
-    const override = this.config.endpointOverrides?.[endpoint]
-    if (override) {
-      return suffix ? `${override}/${suffix}` : override
-    }
-    const base = BASE_URLS[this.config.environment]
-    const path = ENDPOINT_PATHS[endpoint]
-    const url = `${base}${path}`
+    const url = `${this.baseUrl}${ENDPOINT_PATHS[endpoint]}`
     return suffix ? `${url}/${suffix}` : url
   }
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import axios from 'axios'
 import { BorrowerApiClient } from '../src/client.js'
-import { BorrowerEnvironment, BorrowerEndpoint } from '../src/types.js'
+import { BorrowerEnvironment } from '../src/types.js'
 import {
   AdapterAssertionConsentMethod,
   AdapterAssertionSkipReason,
@@ -168,11 +168,10 @@ describe('BorrowerApiClient.submitAdapterAssertion', () => {
     expect(url).toContain('/adapters/carrier-phone/assertions')
   })
 
-  it('uses endpoint override when configured', async () => {
-    const client = makeClient({
-      endpointOverrides: {
-        [BorrowerEndpoint.SUBMIT_ADAPTER_ASSERTION]: 'https://custom.api.com/adapters',
-      },
+  it('sends the assertion to baseUrl when one is configured', async () => {
+    const client = new BorrowerApiClient({
+      baseUrl: 'https://custom.api.com',
+      credentials: makeConfig().credentials,
     })
     mockedAxios.post.mockResolvedValueOnce({
       data: { data: { consentEventId: 1, adapterRunId: 10, signalCount: 1 } },

@@ -54,8 +54,15 @@ export interface UpstreamErrorDetail {
   status?: number
 }
 
-export interface BorrowerClientConfig {
-  environment: BorrowerEnvironment
+/**
+ * Where every call goes: a built-in host, or any other finsys-api origin.
+ * Exactly one of the two, so a client can't split its calls across hosts.
+ */
+export type BorrowerTarget =
+  | { environment: BorrowerEnvironment; baseUrl?: never }
+  | { baseUrl: string; environment?: never }
+
+export type BorrowerClientConfig = BorrowerTarget & {
   credentials: {
     clientId: string
     clientSecret: string
@@ -73,8 +80,6 @@ export interface BorrowerClientConfig {
      */
     serviceKey?: string
   }
-  /** Optional per-endpoint full URL overrides */
-  endpointOverrides?: Partial<Record<BorrowerEndpoint, string>>
 }
 
 export interface CachedToken {

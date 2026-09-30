@@ -7,6 +7,29 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 Entries start at 3.11.0 — the release that introduced this file. Earlier
 versions are described by their GitHub Releases.
 
+## [Unreleased] - 4.0.0
+
+### Removed
+
+- **`endpointOverrides` (SYS-3769).** It let a consumer point some calls at one host while the
+  rest fell back to the built-in default. lead-gen did that by accident: FinSim and local runs
+  sent consent events to prod. The constructor now throws if `endpointOverrides` is passed.
+
+### Added
+
+- **`baseUrl` (SYS-3769).** Pass `baseUrl` (any finsys-api origin) or `environment` (a built-in
+  host), not both. Every call goes to that one origin, which `client.baseUrl` exposes. The
+  constructor throws if both or neither are set, if `baseUrl` has a path, query or fragment, or
+  if `environment` isn't `staging` or `production`.
+- **`normalizeBaseUrl()`** returns a configured URL as a bare origin, or throws. Consumers call
+  it at startup.
+
+### Migrating from 3.x
+
+Replace `endpointOverrides` with `baseUrl` set to the origin the overrides pointed at, for
+example `baseUrl: 'http://finsys-api:8006'`. Consumers that only pass `environment` need no
+change.
+
 ## [3.12.0] - 2026-09-23
 
 ### Added

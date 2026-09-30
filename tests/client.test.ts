@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import axios from 'axios'
 import { BorrowerApiClient } from '../src/client.js'
-import { BorrowerEnvironment, BorrowerEndpoint } from '../src/types.js'
+import { BorrowerEnvironment } from '../src/types.js'
 import type { BorrowerClientConfig } from '../src/types.js'
 
 vi.mock('axios')
@@ -235,11 +235,10 @@ describe('BorrowerApiClient.createConsentEvent', () => {
     expect(result.message).toBe('An unexpected error occurred during consent creation')
   })
 
-  it('uses endpoint override when configured', async () => {
-    const client = makeClient({
-      endpointOverrides: {
-        [BorrowerEndpoint.CREATE_CONSENT]: 'https://custom.api.com/consent',
-      },
+  it('sends the consent event to baseUrl when one is configured', async () => {
+    const client = new BorrowerApiClient({
+      baseUrl: 'https://custom.api.com',
+      credentials: makeConfig().credentials,
     })
 
     mockLogin()
@@ -253,7 +252,7 @@ describe('BorrowerApiClient.createConsentEvent', () => {
     })
 
     const consentCall = mockedAxios.post.mock.calls[1]
-    expect(consentCall[0]).toBe('https://custom.api.com/consent/IHS-10')
+    expect(consentCall[0]).toBe('https://custom.api.com/client/ihs/createConsentEvent/IHS-10')
   })
 
   it('sends the payload correctly', async () => {

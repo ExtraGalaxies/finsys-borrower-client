@@ -7,6 +7,7 @@ export {
   AdapterAssertionConsentMethod,
   AdapterAssertionSkipReason,
   type BorrowerClientConfig,
+  type BorrowerTarget,
   type UploadResult,
   type UploadedFileRef,
   type UpstreamErrorDetail,
