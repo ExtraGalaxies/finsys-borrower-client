@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import axios from 'axios'
 import { BorrowerApiClient } from '../src/client.js'
-import { BASE_URLS } from '../src/environments.js'
-import { AdapterAssertionConsentMethod, BorrowerEnvironment } from '../src/types.js'
+import { BASE_URLS, ENDPOINT_PATHS } from '../src/environments.js'
+import {
+  AdapterAssertionConsentMethod,
+  BorrowerEndpoint,
+  BorrowerEnvironment,
+} from '../src/types.js'
 import type { AdapterAssertionPushBody, BorrowerClientConfig } from '../src/types.js'
 
 vi.mock('axios')
@@ -164,6 +168,35 @@ describe('BorrowerApiClient target (SYS-3769)', () => {
   ])('treats %s as unset', (_label, target, expected) => {
     const config = { ...target, credentials } as unknown as BorrowerClientConfig
     expect(new BorrowerApiClient(config).baseUrl).toBe(expected)
+  })
+
+  it('refuses a new baseUrl after construction', () => {
+    const client = new BorrowerApiClient({ baseUrl: 'http://finsys-api:8006', credentials })
+    expect(() => {
+      ;(client as { baseUrl: string }).baseUrl = 'https://other.example'
+    }).toThrow(TypeError)
+    expect(client.baseUrl).toBe('http://finsys-api:8006')
+  })
+
+  it('refuses changes to BASE_URLS and ENDPOINT_PATHS at runtime', () => {
+    expect(() => {
+      ;(BASE_URLS as Record<string, string>)[BorrowerEnvironment.PRODUCTION] = 'https://other.example'
+    }).toThrow(TypeError)
+    expect(() => {
+      ;(ENDPOINT_PATHS as Record<string, string>)[BorrowerEndpoint.LOGIN] = '@other.example/x'
+    }).toThrow(TypeError)
+    expect(BASE_URLS[BorrowerEnvironment.PRODUCTION]).toBe('https://finsys-api.finhero.asia')
+    expect(ENDPOINT_PATHS[BorrowerEndpoint.LOGIN]).toBe('/auth/client/login')
+  })
+
+  it('keeps its host when the config object changes after construction', async () => {
+    const config = { baseUrl: 'http://finsys-api:8006', credentials }
+    const client = new BorrowerApiClient(config)
+    config.baseUrl = 'https://other.example'
+
+    const urls = await urlsOfEveryCall(client)
+
+    expect(urls.filter((url) => !url.startsWith('http://finsys-api:8006/'))).toEqual([])
   })
 
   it('accepts endpointOverrides: undefined', () => {

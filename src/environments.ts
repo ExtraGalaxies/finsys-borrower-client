@@ -1,11 +1,12 @@
 import { BorrowerEnvironment, BorrowerEndpoint, type BorrowerClientConfig } from './types.js'
 
-export const BASE_URLS: Record<BorrowerEnvironment, string> = {
+// Frozen: every URL is built from these, so a change at runtime would redirect calls.
+export const BASE_URLS: Readonly<Record<BorrowerEnvironment, string>> = Object.freeze({
   [BorrowerEnvironment.STAGING]: 'https://finsys-api-stage.finhero.asia',
   [BorrowerEnvironment.PRODUCTION]: 'https://finsys-api.finhero.asia',
-}
+})
 
-export const ENDPOINT_PATHS: Record<BorrowerEndpoint, string> = {
+export const ENDPOINT_PATHS: Readonly<Record<BorrowerEndpoint, string>> = Object.freeze({
   [BorrowerEndpoint.LOGIN]: '/auth/client/login',
   [BorrowerEndpoint.SUBMISSION]: '/client/ihs/client/submission',
   [BorrowerEndpoint.UPDATE]: '/client/ihs/update',
@@ -18,7 +19,7 @@ export const ENDPOINT_PATHS: Record<BorrowerEndpoint, string> = {
   // resolveUrl()'s suffix parameter: submitAdapterAssertion() calls
   // resolveUrl(SUBMIT_ADAPTER_ASSERTION, `${adapterId}/assertions`).
   [BorrowerEndpoint.SUBMIT_ADAPTER_ASSERTION]: '/adapters',
-}
+})
 
 const NOT_A_URL =
   'baseUrl must be an absolute http(s) URL, such as https://finsys-api.example.com (SYS-3769)'
