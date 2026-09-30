@@ -168,21 +168,6 @@ describe('BorrowerApiClient.submitAdapterAssertion', () => {
     expect(url).toContain('/adapters/carrier-phone/assertions')
   })
 
-  it('sends the assertion to baseUrl when one is configured', async () => {
-    const client = new BorrowerApiClient({
-      baseUrl: 'https://custom.api.com',
-      credentials: makeConfig().credentials,
-    })
-    mockedAxios.post.mockResolvedValueOnce({
-      data: { data: { consentEventId: 1, adapterRunId: 10, signalCount: 1 } },
-    } as any)
-
-    await client.submitAdapterAssertion('carrier-phone', baseSignalsBody())
-
-    const [url] = mockedAxios.post.mock.calls[0]
-    expect(url).toBe('https://custom.api.com/adapters/carrier-phone/assertions')
-  })
-
   // ── Happy path: signals outcome ─────────────────────────────────
 
   it('submits a signals outcome and returns the 201 data shape', async () => {

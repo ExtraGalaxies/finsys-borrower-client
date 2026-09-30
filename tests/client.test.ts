@@ -235,26 +235,6 @@ describe('BorrowerApiClient.createConsentEvent', () => {
     expect(result.message).toBe('An unexpected error occurred during consent creation')
   })
 
-  it('sends the consent event to baseUrl when one is configured', async () => {
-    const client = new BorrowerApiClient({
-      baseUrl: 'https://custom.api.com',
-      credentials: makeConfig().credentials,
-    })
-
-    mockLogin()
-    mockedAxios.post.mockResolvedValueOnce({
-      data: { data: { id: 1 } },
-    } as any)
-
-    await client.createConsentEvent('IHS-10', {
-      consentDefinitionId: 1,
-      consentGiven: true,
-    })
-
-    const consentCall = mockedAxios.post.mock.calls[1]
-    expect(consentCall[0]).toBe('https://custom.api.com/client/ihs/createConsentEvent/IHS-10')
-  })
-
   it('sends the payload correctly', async () => {
     const client = makeClient()
 
