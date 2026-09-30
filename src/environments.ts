@@ -33,10 +33,9 @@ function isLocalHost(hostname: string): boolean {
 
 /**
  * Returns `raw` as a bare origin such as `http://finsys-api:8006`, or throws.
- * Every call appends a fixed path to this origin, so a path here is a mistake,
- * usually an old per-endpoint URL pasted in whole. Plain http is allowed only
- * for a local host, since login sends the client secret. Messages never repeat
- * the scheme, path, query or password, which can carry secrets.
+ * Every call appends a fixed path to this origin, so a path here is a mistake.
+ * Plain http is allowed only for a local host, since login sends the client
+ * secret. Messages repeat at most `url.origin`; the rest of `raw` can carry secrets.
  */
 export function normalizeBaseUrl(raw: unknown): string {
   if (typeof raw !== 'string') throw new Error(NOT_A_URL)
@@ -67,8 +66,8 @@ export function normalizeBaseUrl(raw: unknown): string {
 
 /**
  * The origin every call from a client with `config` goes to, or throws. The
- * types already rule these cases out; this also catches plain-JS callers and
- * config read from files.
+ * types rule out the bad configs below, but they still arrive from plain-JS
+ * callers and config read from files.
  */
 export function resolveBaseUrl(config: BorrowerClientConfig): string {
   if (typeof config !== 'object' || config === null) {

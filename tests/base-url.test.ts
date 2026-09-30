@@ -21,7 +21,7 @@ describe('normalizeBaseUrl', () => {
     expect(normalizeBaseUrl(raw)).toBe(expected)
   })
 
-  it('refuses an old full endpoint URL and names the origin to use', () => {
+  it('refuses a full endpoint URL and names the origin to use', () => {
     expect(messageOf(() => normalizeBaseUrl('http://finsys-api:8006/auth/client/login'))).toBe(
       'baseUrl must be an origin only, like http://finsys-api:8006, with no path, query or fragment (SYS-3769)'
     )

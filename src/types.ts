@@ -56,7 +56,7 @@ export interface UpstreamErrorDetail {
 
 /**
  * Where every call goes: a built-in host, or any other finsys-api origin.
- * Exactly one of the two, so a client can't split its calls across hosts.
+ * Exactly one of the two.
  */
 export type BorrowerTarget =
   | { environment: BorrowerEnvironment; baseUrl?: never }

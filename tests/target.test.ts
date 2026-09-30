@@ -33,7 +33,7 @@ const assertionBody: AdapterAssertionPushBody = {
   outcome: { kind: 'signals', fields: { phoneTenureMonths: 36 } },
 }
 
-// Calls each public method that sends a request once, and returns the URL of every request.
+// Must call every public method that sends a request, or the host checks below miss it.
 async function urlsOfEveryCall(client: BorrowerApiClient): Promise<string[]> {
   await client.login()
   await client.uploadFile(Buffer.from('%PDF-1.4'), 'a.pdf')
