@@ -11,7 +11,7 @@ import type { BorrowerClientConfig, AdapterAssertionPushBody } from '../src/type
 vi.mock('axios')
 const mockedAxios = vi.mocked(axios, true)
 
-function makeConfig(overrides?: Partial<BorrowerClientConfig>): BorrowerClientConfig {
+function makeConfig(overrides?: Pick<Partial<BorrowerClientConfig>, 'credentials'>): BorrowerClientConfig {
   return {
     environment: BorrowerEnvironment.STAGING,
     credentials: {
@@ -24,7 +24,7 @@ function makeConfig(overrides?: Partial<BorrowerClientConfig>): BorrowerClientCo
   }
 }
 
-function makeClient(overrides?: Partial<BorrowerClientConfig>): BorrowerApiClient {
+function makeClient(overrides?: Pick<Partial<BorrowerClientConfig>, 'credentials'>): BorrowerApiClient {
   return new BorrowerApiClient(makeConfig(overrides))
 }
 
@@ -68,7 +68,7 @@ describe('AdapterAssertionConsentMethod / AdapterAssertionSkipReason — literal
 describe('BorrowerApiClient.submitAdapterAssertion', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockedAxios.isAxiosError = (error: any): error is any => error?.isAxiosError === true
+    mockedAxios.isAxiosError = ((error: any) => error?.isAxiosError === true) as any
   })
 
   afterEach(() => {

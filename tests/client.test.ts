@@ -7,7 +7,7 @@ import type { BorrowerClientConfig } from '../src/types.js'
 vi.mock('axios')
 const mockedAxios = vi.mocked(axios, true)
 
-function makeConfig(overrides?: Partial<BorrowerClientConfig>): BorrowerClientConfig {
+function makeConfig(overrides?: Pick<Partial<BorrowerClientConfig>, 'credentials'>): BorrowerClientConfig {
   return {
     environment: BorrowerEnvironment.STAGING,
     credentials: {
@@ -19,7 +19,7 @@ function makeConfig(overrides?: Partial<BorrowerClientConfig>): BorrowerClientCo
   }
 }
 
-function makeClient(overrides?: Partial<BorrowerClientConfig>): BorrowerApiClient {
+function makeClient(overrides?: Pick<Partial<BorrowerClientConfig>, 'credentials'>): BorrowerApiClient {
   return new BorrowerApiClient(makeConfig(overrides))
 }
 
@@ -33,8 +33,8 @@ function mockLogin() {
 describe('BorrowerApiClient.createConsentEvent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockedAxios.isAxiosError = (error: any): error is any =>
-      error?.isAxiosError === true
+    mockedAxios.isAxiosError = ((error: any) =>
+      error?.isAxiosError === true) as any
   })
 
   afterEach(() => {
@@ -321,8 +321,8 @@ describe('BorrowerApiClient.createConsentEvent', () => {
 describe('BorrowerApiClient.submitApplication', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockedAxios.isAxiosError = (error: any): error is any =>
-      error?.isAxiosError === true
+    mockedAxios.isAxiosError = ((error: any) =>
+      error?.isAxiosError === true) as any
   })
 
   afterEach(() => {
@@ -428,8 +428,8 @@ describe('BorrowerApiClient.submitApplication', () => {
 describe('BorrowerApiClient.updateApplication', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockedAxios.isAxiosError = (error: any): error is any =>
-      error?.isAxiosError === true
+    mockedAxios.isAxiosError = ((error: any) =>
+      error?.isAxiosError === true) as any
   })
 
   afterEach(() => {
@@ -515,8 +515,8 @@ describe('BorrowerApiClient.updateApplication', () => {
 describe('BorrowerApiClient.getApplicationStatus', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockedAxios.isAxiosError = (error: any): error is any =>
-      error?.isAxiosError === true
+    mockedAxios.isAxiosError = ((error: any) =>
+      error?.isAxiosError === true) as any
   })
 
   afterEach(() => {
@@ -602,8 +602,8 @@ describe('BorrowerApiClient.getApplicationStatus', () => {
 describe('BorrowerApiClient.uploadFile', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockedAxios.isAxiosError = (error: any): error is any =>
-      error?.isAxiosError === true
+    mockedAxios.isAxiosError = ((error: any) =>
+      error?.isAxiosError === true) as any
   })
 
   afterEach(() => {

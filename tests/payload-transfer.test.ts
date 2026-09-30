@@ -16,7 +16,7 @@ describe('resolvePayloadTransfer', () => {
       const rule = resolvePayloadTransfer(name)
       expect(rule).not.toBeNull()
       expect(rule!.kind).toBe('document')
-      if (rule!.kind === 'document') {
+      if (rule?.kind === 'document') {
         expect(rule.apiField).toBe(apiField)
         expect(rule.format).toBe(format)
         expect(rule.tIndex).toBe(tIndex)
@@ -33,7 +33,7 @@ describe('resolvePayloadTransfer', () => {
       const rule = resolvePayloadTransfer(name)
       expect(rule).not.toBeNull()
       expect(rule!.kind).toBe('document')
-      if (rule!.kind === 'document') {
+      if (rule?.kind === 'document') {
         expect(rule.apiField).toBe(apiField)
         expect(rule.format).toBe(format)
         expect(rule.tIndex).toBeUndefined()
@@ -43,7 +43,7 @@ describe('resolvePayloadTransfer', () => {
     it('routes financials_* prefix matches as financialStatements document', () => {
       const rule = resolvePayloadTransfer('financials_fincap_t1')
       expect(rule!.kind).toBe('document')
-      if (rule!.kind === 'document') {
+      if (rule?.kind === 'document') {
         expect(rule.apiField).toBe('financialStatements')
       }
     })
@@ -51,7 +51,7 @@ describe('resolvePayloadTransfer', () => {
     it('routes supplementaryDoc_* prefix matches as supplementaryDoc document', () => {
       const rule = resolvePayloadTransfer('supplementaryDoc_extra')
       expect(rule!.kind).toBe('document')
-      if (rule!.kind === 'document') {
+      if (rule?.kind === 'document') {
         expect(rule.apiField).toBe('supplementaryDoc')
         expect(rule.format).toBe('path_only')
       }
@@ -65,7 +65,7 @@ describe('resolvePayloadTransfer', () => {
         const rule = resolvePayloadTransfer(name)
         expect(rule).not.toBeNull()
         expect(rule!.kind).toBe('ihs_column')
-        if (rule!.kind === 'ihs_column') {
+        if (rule?.kind === 'ihs_column') {
           expect(rule.name).toBe(name)
         }
       }

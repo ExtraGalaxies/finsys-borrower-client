@@ -21,7 +21,7 @@
     "dev": "tsup --watch",
     "test": "vitest run",
     "prepublishOnly": "npm run build",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit && tsc -p tsconfig.test.json"
   },
   "keywords": [
     "finsys",
