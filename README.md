@@ -77,14 +77,23 @@ await client.updateApplication(created.ihsId, {
 
 #### `constructor(config: BorrowerClientConfig)`
 
-Creates a client instance. Environment determines the base URL:
+Creates a client instance. Every call goes to one host. Pass exactly one of:
 
-| Environment | Base URL |
-|-------------|----------|
-| `staging` | `https://finsys-api-stage.finhero.asia` |
-| `production` | `https://finsys-api.finhero.asia` |
+- `environment`: a built-in host.
 
-Use `endpointOverrides` to override individual endpoint URLs when needed.
+  | Environment | Base URL |
+  |-------------|----------|
+  | `staging` | `https://finsys-api-stage.finhero.asia` |
+  | `production` | `https://finsys-api.finhero.asia` |
+
+- `baseUrl`: any other finsys-api origin, such as `http://finsys-api:8006` for a local stack.
+  It must be a bare origin, with no path, query or fragment. Plain `http` works only for a
+  local host (`localhost`, a loopback address, or a one-word name like `finsys-api`).
+
+`null` counts as not set. The constructor throws if both or neither are set, if `baseUrl`
+isn't a bare http(s) origin, if `environment` isn't `staging` or `production`, or if
+`endpointOverrides` (removed in 4.0.0) is passed. `client.baseUrl` holds the origin in use.
+Call `normalizeBaseUrl()` to check a configured URL at startup, before any client is built.
 
 #### `login(): Promise<string>`
 

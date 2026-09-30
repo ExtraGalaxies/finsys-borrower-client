@@ -7,6 +7,42 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 Entries start at 3.11.0 — the release that introduced this file. Earlier
 versions are described by their GitHub Releases.
 
+## [4.0.0] - 2026-09-30
+
+### Removed
+
+- **`endpointOverrides` (SYS-3769).** It let a consumer point some calls at one host while the
+  rest fell back to the built-in default. lead-gen did that by accident: FinSim and local runs
+  sent consent events to prod. The constructor now throws if `endpointOverrides` is passed.
+
+### Added
+
+- **`baseUrl` (SYS-3769).** Pass `baseUrl` (any finsys-api origin) or `environment` (a built-in
+  host), not both. `null` counts as not set. Every call goes to that one origin, which the
+  read-only `client.baseUrl` exposes. The constructor throws if both or neither are set, if
+  `baseUrl` isn't a bare http(s) origin, or if `environment` isn't `staging` or `production`.
+  Plain `http` is accepted only for a local host: `localhost`, a loopback address, or a
+  one-word name such as `finsys-api`.
+- **`normalizeBaseUrl()`** returns a configured URL as a bare origin, or throws. Call it at
+  startup, before any client is built.
+
+### Changed
+
+- **The constructor throws on a bad config (SYS-3769).** 3.x accepted any config and failed
+  later, when a call returned `{ success: false }`. A client built when a module loads, from a
+  mistyped env var, now throws on import.
+- **`BorrowerClientConfig` is a type, not an interface (SYS-3769).** It is now
+  `BorrowerTarget & { credentials }`. `interface X extends BorrowerClientConfig` no longer
+  compiles, and `Partial<>` or `Omit<>` over it drops the "one target" rule. Build derived
+  types from `BorrowerTarget` and `BorrowerClientConfig['credentials']` instead.
+- **`BASE_URLS` and `ENDPOINT_PATHS` are frozen (SYS-3769).** Neither can be changed at runtime.
+
+### Migrating from 3.x
+
+Replace `endpointOverrides` with `baseUrl` set to the origin the overrides pointed at, for
+example `baseUrl: 'http://finsys-api:8006'`. Consumers that only pass `environment` need no
+config change.
+
 ## [3.12.0] - 2026-09-23
 
 ### Added

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import axios from 'axios'
 import { BorrowerApiClient } from '../src/client.js'
-import { BorrowerEnvironment, BorrowerEndpoint } from '../src/types.js'
+import { BorrowerEnvironment } from '../src/types.js'
 import {
   AdapterAssertionConsentMethod,
   AdapterAssertionSkipReason,
@@ -11,7 +11,7 @@ import type { BorrowerClientConfig, AdapterAssertionPushBody } from '../src/type
 vi.mock('axios')
 const mockedAxios = vi.mocked(axios, true)
 
-function makeConfig(overrides?: Partial<BorrowerClientConfig>): BorrowerClientConfig {
+function makeConfig(overrides?: Pick<Partial<BorrowerClientConfig>, 'credentials'>): BorrowerClientConfig {
   return {
     environment: BorrowerEnvironment.STAGING,
     credentials: {
@@ -24,7 +24,7 @@ function makeConfig(overrides?: Partial<BorrowerClientConfig>): BorrowerClientCo
   }
 }
 
-function makeClient(overrides?: Partial<BorrowerClientConfig>): BorrowerApiClient {
+function makeClient(overrides?: Pick<Partial<BorrowerClientConfig>, 'credentials'>): BorrowerApiClient {
   return new BorrowerApiClient(makeConfig(overrides))
 }
 
@@ -68,7 +68,7 @@ describe('AdapterAssertionConsentMethod / AdapterAssertionSkipReason — literal
 describe('BorrowerApiClient.submitAdapterAssertion', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockedAxios.isAxiosError = (error: any): error is any => error?.isAxiosError === true
+    mockedAxios.isAxiosError = ((error: any) => error?.isAxiosError === true) as any
   })
 
   afterEach(() => {
@@ -166,22 +166,6 @@ describe('BorrowerApiClient.submitAdapterAssertion', () => {
 
     const [url] = mockedAxios.post.mock.calls[0]
     expect(url).toContain('/adapters/carrier-phone/assertions')
-  })
-
-  it('uses endpoint override when configured', async () => {
-    const client = makeClient({
-      endpointOverrides: {
-        [BorrowerEndpoint.SUBMIT_ADAPTER_ASSERTION]: 'https://custom.api.com/adapters',
-      },
-    })
-    mockedAxios.post.mockResolvedValueOnce({
-      data: { data: { consentEventId: 1, adapterRunId: 10, signalCount: 1 } },
-    } as any)
-
-    await client.submitAdapterAssertion('carrier-phone', baseSignalsBody())
-
-    const [url] = mockedAxios.post.mock.calls[0]
-    expect(url).toBe('https://custom.api.com/adapters/carrier-phone/assertions')
   })
 
   // ── Happy path: signals outcome ─────────────────────────────────

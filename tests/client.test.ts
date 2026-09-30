@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import axios from 'axios'
 import { BorrowerApiClient } from '../src/client.js'
-import { BorrowerEnvironment, BorrowerEndpoint } from '../src/types.js'
+import { BorrowerEnvironment } from '../src/types.js'
 import type { BorrowerClientConfig } from '../src/types.js'
 
 vi.mock('axios')
 const mockedAxios = vi.mocked(axios, true)
 
-function makeConfig(overrides?: Partial<BorrowerClientConfig>): BorrowerClientConfig {
+function makeConfig(overrides?: Pick<Partial<BorrowerClientConfig>, 'credentials'>): BorrowerClientConfig {
   return {
     environment: BorrowerEnvironment.STAGING,
     credentials: {
@@ -19,7 +19,7 @@ function makeConfig(overrides?: Partial<BorrowerClientConfig>): BorrowerClientCo
   }
 }
 
-function makeClient(overrides?: Partial<BorrowerClientConfig>): BorrowerApiClient {
+function makeClient(overrides?: Pick<Partial<BorrowerClientConfig>, 'credentials'>): BorrowerApiClient {
   return new BorrowerApiClient(makeConfig(overrides))
 }
 
@@ -33,8 +33,8 @@ function mockLogin() {
 describe('BorrowerApiClient.createConsentEvent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockedAxios.isAxiosError = (error: any): error is any =>
-      error?.isAxiosError === true
+    mockedAxios.isAxiosError = ((error: any) =>
+      error?.isAxiosError === true) as any
   })
 
   afterEach(() => {
@@ -235,27 +235,6 @@ describe('BorrowerApiClient.createConsentEvent', () => {
     expect(result.message).toBe('An unexpected error occurred during consent creation')
   })
 
-  it('uses endpoint override when configured', async () => {
-    const client = makeClient({
-      endpointOverrides: {
-        [BorrowerEndpoint.CREATE_CONSENT]: 'https://custom.api.com/consent',
-      },
-    })
-
-    mockLogin()
-    mockedAxios.post.mockResolvedValueOnce({
-      data: { data: { id: 1 } },
-    } as any)
-
-    await client.createConsentEvent('IHS-10', {
-      consentDefinitionId: 1,
-      consentGiven: true,
-    })
-
-    const consentCall = mockedAxios.post.mock.calls[1]
-    expect(consentCall[0]).toBe('https://custom.api.com/consent/IHS-10')
-  })
-
   it('sends the payload correctly', async () => {
     const client = makeClient()
 
@@ -322,8 +301,8 @@ describe('BorrowerApiClient.createConsentEvent', () => {
 describe('BorrowerApiClient.submitApplication', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockedAxios.isAxiosError = (error: any): error is any =>
-      error?.isAxiosError === true
+    mockedAxios.isAxiosError = ((error: any) =>
+      error?.isAxiosError === true) as any
   })
 
   afterEach(() => {
@@ -429,8 +408,8 @@ describe('BorrowerApiClient.submitApplication', () => {
 describe('BorrowerApiClient.updateApplication', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockedAxios.isAxiosError = (error: any): error is any =>
-      error?.isAxiosError === true
+    mockedAxios.isAxiosError = ((error: any) =>
+      error?.isAxiosError === true) as any
   })
 
   afterEach(() => {
@@ -516,8 +495,8 @@ describe('BorrowerApiClient.updateApplication', () => {
 describe('BorrowerApiClient.getApplicationStatus', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockedAxios.isAxiosError = (error: any): error is any =>
-      error?.isAxiosError === true
+    mockedAxios.isAxiosError = ((error: any) =>
+      error?.isAxiosError === true) as any
   })
 
   afterEach(() => {
@@ -603,8 +582,8 @@ describe('BorrowerApiClient.getApplicationStatus', () => {
 describe('BorrowerApiClient.uploadFile', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockedAxios.isAxiosError = (error: any): error is any =>
-      error?.isAxiosError === true
+    mockedAxios.isAxiosError = ((error: any) =>
+      error?.isAxiosError === true) as any
   })
 
   afterEach(() => {

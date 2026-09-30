@@ -1,6 +1,6 @@
 import axios, { type AxiosError } from 'axios'
 import FormData from 'form-data'
-import { BASE_URLS, ENDPOINT_PATHS } from './environments.js'
+import { ENDPOINT_PATHS, resolveBaseUrl } from './environments.js'
 import type {
   BorrowerClientConfig,
   CachedToken,
@@ -24,27 +24,25 @@ import { BorrowerEndpoint } from './types.js'
 const SERVICE_ACCOUNT_KEY_HEADER = 'X-Finhub-Service-Key'
 
 export class BorrowerApiClient {
-  private config: BorrowerClientConfig
+  private credentials: BorrowerClientConfig['credentials']
+  // A JS private field, so plain JS can't point the client somewhere else later.
+  readonly #baseUrl: string
   private cachedToken: CachedToken | null = null
   /** Deduplicates concurrent login() calls to prevent token refresh races. */
   private pendingLogin: Promise<string> | null = null
 
   constructor(config: BorrowerClientConfig) {
-    this.config = config
+    this.#baseUrl = resolveBaseUrl(config)
+    this.credentials = config.credentials
   }
 
-  /**
-   * Resolve the full URL for a given endpoint.
-   * Uses endpointOverrides if provided, otherwise derives from environment base URL.
-   */
+  /** The origin every call goes to, such as `https://finsys-api.finhero.asia`. */
+  get baseUrl(): string {
+    return this.#baseUrl
+  }
+
   private resolveUrl(endpoint: BorrowerEndpoint, suffix?: string): string {
-    const override = this.config.endpointOverrides?.[endpoint]
-    if (override) {
-      return suffix ? `${override}/${suffix}` : override
-    }
-    const base = BASE_URLS[this.config.environment]
-    const path = ENDPOINT_PATHS[endpoint]
-    const url = `${base}${path}`
+    const url = `${this.#baseUrl}${ENDPOINT_PATHS[endpoint]}`
     return suffix ? `${url}/${suffix}` : url
   }
 
@@ -53,8 +51,8 @@ export class BorrowerApiClient {
    */
   private gatewayHeaders(): Record<string, string> {
     const headers: Record<string, string> = {}
-    if (this.config.credentials.gatewayKey) {
-      headers['Ocp-Apim-Subscription-Key'] = this.config.credentials.gatewayKey
+    if (this.credentials.gatewayKey) {
+      headers['Ocp-Apim-Subscription-Key'] = this.credentials.gatewayKey
     }
     return headers
   }
@@ -111,7 +109,7 @@ export class BorrowerApiClient {
   }
 
   private async performLogin(now: number): Promise<string> {
-    const { clientId, clientSecret } = this.config.credentials
+    const { clientId, clientSecret } = this.credentials
     if (!clientId || !clientSecret) {
       throw new Error('Client credentials (clientId and clientSecret) are required')
     }
@@ -151,8 +149,8 @@ export class BorrowerApiClient {
       ...this.baseJsonHeaders(),
     }
     // Forward per-tenant FinXtract key so finsys-api can attribute OCR billing correctly.
-    if (this.config.credentials.finxtractApiKey) {
-      headers['X-Finxtract-Subscription-Key'] = this.config.credentials.finxtractApiKey
+    if (this.credentials.finxtractApiKey) {
+      headers['X-Finxtract-Subscription-Key'] = this.credentials.finxtractApiKey
     }
     return headers
   }
@@ -480,7 +478,7 @@ export class BorrowerApiClient {
     if (!adapterId || !BorrowerApiClient.SAFE_ID_PATTERN.test(adapterId)) {
       return { success: false, message: 'Invalid adapterId format' }
     }
-    if (!this.config.credentials.serviceKey) {
+    if (!this.credentials.serviceKey) {
       return {
         success: false,
         message:
@@ -491,7 +489,7 @@ export class BorrowerApiClient {
     try {
       const headers: Record<string, string> = {
         ...this.baseJsonHeaders(),
-        [SERVICE_ACCOUNT_KEY_HEADER]: this.config.credentials.serviceKey,
+        [SERVICE_ACCOUNT_KEY_HEADER]: this.credentials.serviceKey,
       }
 
       const response = await axios.post(
@@ -553,7 +551,7 @@ export class BorrowerApiClient {
    * Test the connection by attempting to authenticate.
    */
   async testConnection(): Promise<ConnectionTestResult> {
-    const { clientId, clientSecret } = this.config.credentials
+    const { clientId, clientSecret } = this.credentials
     if (!clientId || !clientSecret) {
       return { success: false, message: 'Client credentials are not configured.' }
     }
