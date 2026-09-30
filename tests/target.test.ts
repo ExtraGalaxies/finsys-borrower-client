@@ -104,6 +104,11 @@ describe('BorrowerApiClient target (SYS-3769)', () => {
     ],
     ['no target', {}, 'Set either environment or baseUrl (SYS-3769)'],
     [
+      'null for both targets',
+      { environment: null, baseUrl: null },
+      'Set either environment or baseUrl (SYS-3769)',
+    ],
+    [
       'an unknown environment',
       { environment: 'prod' },
       'Unknown environment "prod"; use staging or production (SYS-3769)',
@@ -131,6 +136,34 @@ describe('BorrowerApiClient target (SYS-3769)', () => {
   ])('refuses %s', (_label, target, message) => {
     const config = { ...target, credentials } as unknown as BorrowerClientConfig
     expect(() => new BorrowerApiClient(config)).toThrow(message)
+  })
+
+  it.each([undefined, null, 'staging'])('refuses %j as the config', (config) => {
+    expect(() => new BorrowerApiClient(config as unknown as BorrowerClientConfig)).toThrow(
+      'BorrowerApiClient needs a config object with environment or baseUrl (SYS-3769)'
+    )
+  })
+
+  // JSON and YAML config can only say "unset" with null.
+  it.each<[string, Record<string, unknown>, string]>([
+    [
+      'environment: null next to baseUrl',
+      { environment: null, baseUrl: 'http://finsys-api:8006' },
+      'http://finsys-api:8006',
+    ],
+    [
+      'baseUrl: null next to environment',
+      { environment: 'staging', baseUrl: null },
+      BASE_URLS[BorrowerEnvironment.STAGING],
+    ],
+    [
+      'endpointOverrides: null',
+      { environment: 'staging', endpointOverrides: null },
+      BASE_URLS[BorrowerEnvironment.STAGING],
+    ],
+  ])('treats %s as unset', (_label, target, expected) => {
+    const config = { ...target, credentials } as unknown as BorrowerClientConfig
+    expect(new BorrowerApiClient(config).baseUrl).toBe(expected)
   })
 
   it('accepts endpointOverrides: undefined', () => {

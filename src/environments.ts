@@ -70,17 +70,22 @@ export function normalizeBaseUrl(raw: unknown): string {
  * config read from files.
  */
 export function resolveBaseUrl(config: BorrowerClientConfig): string {
+  if (typeof config !== 'object' || config === null) {
+    throw new Error('BorrowerApiClient needs a config object with environment or baseUrl (SYS-3769)')
+  }
   const raw: { environment?: unknown; baseUrl?: unknown; endpointOverrides?: unknown } = config
-  if (raw.endpointOverrides !== undefined) {
+  // null counts as unset: JSON and YAML config have no other way to say it.
+  const isSet = (value: unknown) => value !== undefined && value !== null
+  if (isSet(raw.endpointOverrides)) {
     throw new Error(
       'endpointOverrides was removed in 4.0.0 (SYS-3769); set baseUrl to the finsys-api origin instead'
     )
   }
-  if (raw.environment !== undefined && raw.baseUrl !== undefined) {
+  if (isSet(raw.environment) && isSet(raw.baseUrl)) {
     throw new Error('Set either environment or baseUrl, not both (SYS-3769)')
   }
-  if (raw.baseUrl !== undefined) return normalizeBaseUrl(raw.baseUrl)
-  if (raw.environment === undefined) {
+  if (isSet(raw.baseUrl)) return normalizeBaseUrl(raw.baseUrl)
+  if (!isSet(raw.environment)) {
     throw new Error('Set either environment or baseUrl (SYS-3769)')
   }
   if (typeof raw.environment !== 'string' || !Object.hasOwn(BASE_URLS, raw.environment)) {
