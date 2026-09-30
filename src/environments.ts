@@ -71,8 +71,14 @@ export function resolveBaseUrl(config: BorrowerClientConfig): string {
     throw new Error('Set either environment or baseUrl (SYS-3769)')
   }
   if (typeof raw.environment !== 'string' || !Object.hasOwn(BASE_URLS, raw.environment)) {
+    // Repeat the value only when it looks like a name; a URL put here by
+    // mistake can carry a password or token.
+    const shown =
+      typeof raw.environment === 'string' && /^[A-Za-z_-]{1,20}$/.test(raw.environment)
+        ? ` "${raw.environment}"`
+        : ''
     throw new Error(
-      `Unknown environment "${String(raw.environment)}"; use ${Object.values(BorrowerEnvironment).join(' or ')} (SYS-3769)`
+      `Unknown environment${shown}; use ${Object.values(BorrowerEnvironment).join(' or ')} (SYS-3769)`
     )
   }
   return BASE_URLS[raw.environment as BorrowerEnvironment]

@@ -114,6 +114,16 @@ describe('BorrowerApiClient target (SYS-3769)', () => {
       'Unknown environment "toString"; use staging or production (SYS-3769)',
     ],
     [
+      'a URL as environment without repeating it',
+      { environment: 'https://svc:hunter2@x.example/?token=secret-token' },
+      'Unknown environment; use staging or production (SYS-3769)',
+    ],
+    [
+      'an object with no prototype as environment',
+      { environment: Object.create(null) },
+      'Unknown environment; use staging or production (SYS-3769)',
+    ],
+    [
       'a baseUrl with a path',
       { baseUrl: 'http://finsys-api:8006/auth/client/login' },
       'baseUrl must be an origin only, like http://finsys-api:8006, with no path, query or fragment (SYS-3769)',
